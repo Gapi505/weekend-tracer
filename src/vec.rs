@@ -2,6 +2,7 @@ use std::ops::*;
 
 
 // Vec2 Definition
+#[derive(Clone, Copy)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -29,6 +30,25 @@ impl Vec2 {
     }
     pub fn expand(&self, z: f32) -> Vec3 {
         Vec3::new(self.x, self.y, z)
+    }
+    pub fn normalize(&self) -> Self {
+        let len = self.length();
+        if len != 0.0 {
+            *self / len
+        } else {
+            *self
+        }
+    }
+    pub fn distance(&self, other: Self) -> f32 {
+        (*self - other).length()
+    }
+
+    pub fn zero() -> Self {
+        Self::splat(0.0)
+    }
+
+    pub fn one() -> Self {
+        Self::splat(1.0)
     }
 
 }
@@ -112,6 +132,7 @@ macro_rules! vec2 {
     };
 }
 
+#[derive(Copy, Clone)]
 pub struct Vec3{
     pub x: f32,
     pub y: f32,
@@ -142,7 +163,46 @@ impl Vec3{
     pub fn cut(&self) -> Vec2 {
         Vec2::new(self.x, self.y)
     }
+    pub fn normalize(&self) -> Self {
+        let len = self.length();
+        if len != 0.0 {
+            *self / len
+        } else {
+            *self
+        }
+    }
+    pub fn distance(&self, other: Self) -> f32 {
+        (*self - other).length()
+    }
+    pub fn hadamard(&self, other: Self) -> Self {
+        Self::new(self.x * other.x, self.y * other.y, self.z * other.z)
+    }
+    pub fn reflect(&self, normal: Vec3) -> Vec3 {
+        *self - normal * 2.0 * self.dot(normal)
+    }
+    pub fn angle_between(&self, other: Self) -> f32 {
+        let dot = self.dot(other);
+        let len_product = self.length() * other.length();
+        if len_product != 0.0 {
+            (dot / len_product).acos()
+        } else {
+            0.0
+        }
+    }
+    pub fn clamp(&self, min: Self, max: Self) -> Self {
+        Self::new(
+            self.x.max(min.x).min(max.x),
+            self.y.max(min.y).min(max.y),
+            self.z.max(min.z).min(max.z),
+        )
+    }
+    pub fn zero() -> Self {
+        Self::splat(0.0)
+    }
 
+    pub fn one() -> Self {
+        Self::splat(1.0)
+    }
 
 }
 impl std::fmt::Display for Vec3{
@@ -260,6 +320,7 @@ macro_rules! vec3 {
 
 
 // Vec4 Definition
+#[derive(Copy, Clone)]
 pub struct Vec4 {
     pub x: f32,
     pub y: f32,
@@ -291,6 +352,31 @@ impl Vec4 {
     }
     pub fn cut(&self) -> Vec3 {
         Vec3::new(self.x, self.y, self.z)
+    }
+    pub fn normalize(&self) -> Self {
+        let len = self.length();
+        if len != 0.0 {
+            *self / len
+        } else {
+            *self
+        }
+    }
+    pub fn distance(&self, other: Self) -> f32 {
+        (*self - other).length()
+    }
+    pub fn cross(&self, other: Vec3) -> Vec3 {
+        Vec3::new(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x,
+        )
+    }
+    pub fn zero() -> Self {
+        Self::splat(0.0)
+    }
+
+    pub fn one() -> Self {
+        Self::splat(1.0)
     }
 
 }
