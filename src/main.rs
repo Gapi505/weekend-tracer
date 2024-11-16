@@ -1,5 +1,5 @@
 pub mod image;
-pub mod vec;
+pub mod vectors;
 
 fn main() {
     println!("Hello, world!");
