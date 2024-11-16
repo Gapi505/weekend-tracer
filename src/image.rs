@@ -1,8 +1,8 @@
+use crate::vectors::{Vec2, Vec3};
+use crate::{vec2, vec3};
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-use crate::{vec2, vec3};
-use crate::vectors::{Vec4, Vec2, Vec3};
 
 pub struct Image{
     size:Vec2<usize>,

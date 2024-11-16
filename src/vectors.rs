@@ -28,7 +28,7 @@ where
     pub fn distance(&self, other: Vec2<T>) -> T {
         let dx = self.x - other.x;
         let dy = self.y - other.y;
-        (dx * dx + dy * dy)
+        dx * dx + dy * dy
     }
 
     pub fn zero() -> Self {
