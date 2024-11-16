@@ -119,7 +119,7 @@ where
     }
 }
 
-// Macro for Vec2
+#[macro_export]
 macro_rules! vec2 {
     ($x:expr, $y:expr) => {
         Vec2::new($x, $y)
@@ -129,6 +129,8 @@ macro_rules! vec2 {
     };
 }
 
+
+
 #[derive(Copy, Clone, Debug)]
 pub struct Vec3<T> {
     pub x: T,
@@ -136,9 +138,10 @@ pub struct Vec3<T> {
     pub z: T,
 }
 
+// Define the `new` method with minimal bounds (only `Copy`)
 impl<T> Vec3<T>
 where
-    T: Copy + Num + AddAssign + SubAssign + MulAssign + DivAssign,
+    T: Copy,
 {
     pub fn new(x: T, y: T, z: T) -> Self {
         Vec3 { x, y, z }
@@ -147,7 +150,13 @@ where
     pub fn splat(value: T) -> Self {
         Vec3::new(value, value, value)
     }
+}
 
+// General numeric methods (like `dot`, `zero`, `one`) that require `Zero` and `One`
+impl<T> Vec3<T>
+where
+    T: Copy + Add<Output = T> + Mul<Output = T> + Zero + One,
+{
     pub fn dot(&self, other: Vec3<T>) -> T {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
@@ -164,7 +173,7 @@ where
 // Floating-point specific methods
 impl<T> Vec3<T>
 where
-    T: Copy + Float + AddAssign + SubAssign + MulAssign + DivAssign,
+    T: Copy + Float,
 {
     pub fn length(&self) -> T {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
@@ -183,7 +192,7 @@ where
 // Implementing all the operators for Vec3
 impl<T> Add for Vec3<T>
 where
-    T: Copy + Num + AddAssign,
+    T: Copy + Add<Output = T>,
 {
     type Output = Self;
     fn add(self, other: Self) -> Self::Output {
@@ -193,7 +202,7 @@ where
 
 impl<T> AddAssign for Vec3<T>
 where
-    T: Copy + Num + AddAssign,
+    T: Copy + AddAssign,
 {
     fn add_assign(&mut self, other: Self) {
         self.x += other.x;
@@ -204,7 +213,7 @@ where
 
 impl<T> Sub for Vec3<T>
 where
-    T: Copy + Num + SubAssign,
+    T: Copy + Sub<Output = T>,
 {
     type Output = Self;
     fn sub(self, other: Self) -> Self::Output {
@@ -214,7 +223,7 @@ where
 
 impl<T> SubAssign for Vec3<T>
 where
-    T: Copy + Num + SubAssign,
+    T: Copy + SubAssign,
 {
     fn sub_assign(&mut self, other: Self) {
         self.x -= other.x;
@@ -225,7 +234,7 @@ where
 
 impl<T> Mul<T> for Vec3<T>
 where
-    T: Copy + Num + MulAssign,
+    T: Copy + Mul<Output = T>,
 {
     type Output = Self;
     fn mul(self, scalar: T) -> Self::Output {
@@ -235,7 +244,7 @@ where
 
 impl<T> MulAssign<T> for Vec3<T>
 where
-    T: Copy + Num + MulAssign,
+    T: Copy + MulAssign,
 {
     fn mul_assign(&mut self, scalar: T) {
         self.x *= scalar;
@@ -246,7 +255,7 @@ where
 
 impl<T> Div<T> for Vec3<T>
 where
-    T: Copy + Num + DivAssign,
+    T: Copy + Div<Output = T>,
 {
     type Output = Self;
     fn div(self, scalar: T) -> Self::Output {
@@ -256,7 +265,7 @@ where
 
 impl<T> DivAssign<T> for Vec3<T>
 where
-    T: Copy + Num + DivAssign,
+    T: Copy + DivAssign,
 {
     fn div_assign(&mut self, scalar: T) {
         self.x /= scalar;
@@ -267,7 +276,7 @@ where
 
 impl<T> Neg for Vec3<T>
 where
-    T: Copy + Num + Neg<Output = T>,
+    T: Copy + Neg<Output = T>,
 {
     type Output = Self;
     fn neg(self) -> Self::Output {
@@ -275,6 +284,17 @@ where
     }
 }
 
+impl<T> std::fmt::Display for Vec3<T>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {}, {})", self.x, self.y, self.z)
+    }
+}
+
+
+#[macro_export]
 macro_rules! vec3 {
     ($x:expr, $y:expr, $z:expr) => {
         Vec3::new($x, $y, $z)
@@ -294,9 +314,10 @@ pub struct Vec4<T> {
     pub w: T,
 }
 
+// General implementation with minimal bounds for `new`
 impl<T> Vec4<T>
 where
-    T: Copy + Num + AddAssign + SubAssign + MulAssign + DivAssign,
+    T: Copy,
 {
     pub fn new(x: T, y: T, z: T, w: T) -> Self {
         Vec4 { x, y, z, w }
@@ -305,7 +326,13 @@ where
     pub fn splat(value: T) -> Self {
         Vec4::new(value, value, value, value)
     }
+}
 
+// Implementation for numeric types (`dot`, `zero`, `one`)
+impl<T> Vec4<T>
+where
+    T: Copy + Add<Output = T> + Mul<Output = T> + Zero + One,
+{
     pub fn dot(&self, other: Vec4<T>) -> T {
         self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w
     }
@@ -322,7 +349,7 @@ where
 // Floating-point specific methods
 impl<T> Vec4<T>
 where
-    T: Copy + Float + AddAssign + SubAssign + MulAssign + DivAssign,
+    T: Copy + Float,
 {
     pub fn length(&self) -> T {
         (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt()
@@ -341,7 +368,7 @@ where
 // Implementing all the operators for Vec4
 impl<T> Add for Vec4<T>
 where
-    T: Copy + Num + AddAssign,
+    T: Copy + Add<Output = T>,
 {
     type Output = Self;
     fn add(self, other: Self) -> Self::Output {
@@ -356,7 +383,7 @@ where
 
 impl<T> AddAssign for Vec4<T>
 where
-    T: Copy + Num + AddAssign,
+    T: Copy + AddAssign,
 {
     fn add_assign(&mut self, other: Self) {
         self.x += other.x;
@@ -368,7 +395,7 @@ where
 
 impl<T> Sub for Vec4<T>
 where
-    T: Copy + Num + SubAssign,
+    T: Copy + Sub<Output = T>,
 {
     type Output = Self;
     fn sub(self, other: Self) -> Self::Output {
@@ -383,7 +410,7 @@ where
 
 impl<T> SubAssign for Vec4<T>
 where
-    T: Copy + Num + SubAssign,
+    T: Copy + SubAssign,
 {
     fn sub_assign(&mut self, other: Self) {
         self.x -= other.x;
@@ -395,22 +422,17 @@ where
 
 impl<T> Mul<T> for Vec4<T>
 where
-    T: Copy + Num + MulAssign,
+    T: Copy + Mul<Output = T>,
 {
     type Output = Self;
     fn mul(self, scalar: T) -> Self::Output {
-        Self::new(
-            self.x * scalar,
-            self.y * scalar,
-            self.z * scalar,
-            self.w * scalar,
-        )
+        Self::new(self.x * scalar, self.y * scalar, self.z * scalar, self.w * scalar)
     }
 }
 
 impl<T> MulAssign<T> for Vec4<T>
 where
-    T: Copy + Num + MulAssign,
+    T: Copy + MulAssign,
 {
     fn mul_assign(&mut self, scalar: T) {
         self.x *= scalar;
@@ -422,22 +444,17 @@ where
 
 impl<T> Div<T> for Vec4<T>
 where
-    T: Copy + Num + DivAssign,
+    T: Copy + Div<Output = T>,
 {
     type Output = Self;
     fn div(self, scalar: T) -> Self::Output {
-        Self::new(
-            self.x / scalar,
-            self.y / scalar,
-            self.z / scalar,
-            self.w / scalar,
-        )
+        Self::new(self.x / scalar, self.y / scalar, self.z / scalar, self.w / scalar)
     }
 }
 
 impl<T> DivAssign<T> for Vec4<T>
 where
-    T: Copy + Num + DivAssign,
+    T: Copy + DivAssign,
 {
     fn div_assign(&mut self, scalar: T) {
         self.x /= scalar;
@@ -449,7 +466,7 @@ where
 
 impl<T> Neg for Vec4<T>
 where
-    T: Copy + Num + Neg<Output = T>,
+    T: Copy + Neg<Output = T>,
 {
     type Output = Self;
     fn neg(self) -> Self::Output {
@@ -467,6 +484,7 @@ where
 }
 
 // Macro for Vec4
+#[macro_export]
 macro_rules! vec4 {
     ($x:expr, $y:expr, $z:expr, $w:expr) => {
         Vec4::new($x, $y, $z, $w)

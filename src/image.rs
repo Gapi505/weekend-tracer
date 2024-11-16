@@ -1,40 +1,38 @@
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-
+use crate::{vec2, vec3};
+use crate::vectors::{Vec4, Vec2, Vec3};
 
 pub struct Image{
-    width: u32,
-    height: u32,
-    data: Vec<[u8;3]>,
+    size:Vec2<usize>,
+    data: Vec<Vec3<u8>>,
     file: Option<File>,
 }
 impl Image {
-    pub fn hello_world() -> Self{
-        let width = 256u32;
-        let height = 256u32;
-        let mut data = Vec::with_capacity((width * height) as usize);
-        for y in 0..height {
-            for x in 0..width {
-                data.push([x as u8,y as u8,x as u8]);
-            }
-        }
-        let file = None;
+    pub fn new(size: Vec2<usize>) -> Image {
+        let mut data = vec![Vec3::zero();size.x * size.y];
         Self{
-            width,
-            height,
+            size,
             data,
-            file
+            file: None
+        }
+    }
+    pub fn hello_world(&mut self){
+        for y in 0..self.size.y{
+            for x in 0..self.size.x{
+                self.set(vec2!(x,y), vec3!(0, 0, 0));
+            }
         }
     }
     pub fn save(&mut self) ->std::io::Result<()> {
         let mut file = File::create("image.ppm")?;
-        write!(file, "P6\n{} {}\n{}\n", self.width, self.height, 255)?;
+        write!(file, "P6\n{} {}\n{}\n", self.size.y, self.size.y, 255)?;
         let mut data = Vec::with_capacity(self.data.len()*3);
         for i in 0..self.data.len(){
-            data.push(self.data[i][0]);
-            data.push(self.data[i][1]);
-            data.push(self.data[i][2]);
+            data.push(self.data[i].x);
+            data.push(self.data[i].y);
+            data.push(self.data[i].z);
         }
         file.write_all(&data)?;
         self.file = Some(file);
@@ -48,5 +46,9 @@ impl Image {
                 .wait()?;
         }
         Ok(())
+    }
+    pub fn set(&mut self, pos: Vec2<usize>, color: Vec3<u8>) {
+        let index = pos.y * self.size.y + pos.x;
+        self.data[index] = color;
     }
 }
