@@ -7,14 +7,17 @@ use std::process::Command;
 pub struct Image{
     size:Vec2<usize>,
     data: Vec<Vec3<u8>>,
+    aspect:f32,
     file: Option<File>,
 }
 impl Image {
     pub fn new(size: Vec2<usize>) -> Image {
         let mut data = vec![Vec3::zero();size.x * size.y];
+        let aspect = size.x as f32 / size.y as f32;
         Self{
             size,
             data,
+            aspect,
             file: None
         }
     }
