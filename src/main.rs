@@ -2,7 +2,7 @@ use crate::vectors::Vec2;
 use image::Image;
 pub mod image;
 pub mod vectors;
-
+mod raytracer;
 
 fn main() {
     println!("Hello, world!");
