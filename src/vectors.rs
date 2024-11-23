@@ -131,7 +131,7 @@ macro_rules! vec2 {
 
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Vec3<T> {
     pub x: T,
     pub y: T,
@@ -178,6 +178,9 @@ where
     pub fn length(&self) -> T {
         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
     }
+    pub fn length_sq(&self) -> T {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
 
     pub fn normalize(&self) -> Self {
         let len = self.length();
@@ -186,6 +189,40 @@ where
         } else {
             *self
         }
+    }
+
+    pub fn rotate_around_origin(&mut self, rotation: Vec3<T>) -> Self{
+        // Convert rotation angles from degrees to radians
+        let rot_x = rotation.x.to_radians();
+        let rot_y = rotation.y.to_radians();
+        let rot_z = rotation.z.to_radians();
+
+        // Store original values for clarity
+        let (x, y, z) = (self.x, self.y, self.z);
+
+        // Rotate around X-axis
+        let rotated_x = Vec3 {
+            x,
+            y: y * rot_x.cos() - z * rot_x.sin(),
+            z: y * rot_x.sin() + z * rot_x.cos(),
+        };
+
+        // Rotate around Y-axis
+        let rotated_y = Vec3 {
+            x: rotated_x.x * rot_y.cos() + rotated_x.z * rot_y.sin(),
+            y: rotated_x.y,
+            z: -rotated_x.x * rot_y.sin() + rotated_x.z * rot_y.cos(),
+        };
+
+        // Rotate around Z-axis
+        let rotated_z = Vec3 {
+            x: rotated_y.x * rot_z.cos() - rotated_y.y * rot_z.sin(),
+            y: rotated_y.x * rot_z.sin() + rotated_y.y * rot_z.cos(),
+            z: rotated_y.z,
+        };
+
+        // Update self with the final rotated vector
+        rotated_z
     }
 }
 
@@ -492,4 +529,70 @@ macro_rules! vec4 {
     ($x:expr) => {
         Vec4::splat($x)
     };
+}
+
+
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct Transform{
+    pub position: Vec3<f32>,
+    pub rotation: Vec3<f32>,
+    pub scale: Vec3<f32>,
+}
+impl Transform {
+    pub fn new(position: Vec3<f32>, rotation: Vec3<f32>, scale: Vec3<f32>) -> Self {
+        Self { position, rotation, scale }
+    }
+    pub fn new_at(position: Vec3<f32>) -> Self {
+        Self{position, ..Self::default()}
+    }
+    pub fn translate(&mut self, translation: Vec3<f32>) {
+        self.position += translation;
+    }
+    pub fn rotate_by(&mut self, rotation: Vec3<f32>) {
+        self.rotation += rotation;
+    }
+    pub fn rotate_around_origin(&mut self, rotation: Vec3<f32>) {
+        // Convert rotation to radians
+        let rot_x = rotation.x.to_radians();
+        let rot_y = rotation.y.to_radians();
+        let rot_z = rotation.z.to_radians();
+
+        let mut position = self.position;
+
+        // Rotate around X-axis
+        position = Vec3::new(
+            position.x,
+            position.y * rot_x.cos() - position.z * rot_x.sin(),
+            position.y * rot_x.sin() + position.z * rot_x.cos(),
+        );
+
+        // Rotate around Y-axis
+        position = Vec3::new(
+            position.x * rot_y.cos() + position.z * rot_y.sin(),
+            position.y,
+            -position.x * rot_y.sin() + position.z * rot_y.cos(),
+        );
+
+        // Rotate around Z-axis
+        position = Vec3::new(
+            position.x * rot_z.cos() - position.y * rot_z.sin(),
+            position.x * rot_z.sin() + position.y * rot_z.cos(),
+            position.z,
+        );
+
+        // Update position with the rotated values
+        self.position = position;
+    }
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self{
+            position: vec3![0.,0.,0.],
+            rotation: vec3![0.,0.,0.],
+            scale: vec3![0.,0.,0.]
+
+        }
+    }
 }
