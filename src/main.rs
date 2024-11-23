@@ -9,14 +9,17 @@ mod ray;
 mod camera;
 mod objects;
 
+#[cfg(test)]
+mod tests;
+
 fn main() {
     println!("Hello, world!");
     let mut camera = Camera::new(
         1980.,
         16./9.,
-        Transform::new_at(vec3!(0.,2.,7.)),
+        Transform::new_at(vec3!(0.,2.,-3.)),
         90.);
-    camera.transform.rotate_by(vec3!(30.,180.,0.));
+    camera.transform.rotate_around_axis(Vec3::right(), 20.);
     println!("{:?}", camera);
     let mut img = Image::from_camera(&camera);
     camera.raytrace(&mut img);

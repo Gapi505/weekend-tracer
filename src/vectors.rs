@@ -168,6 +168,11 @@ where
     pub fn one() -> Self {
         Self::splat(T::one())
     }
+
+    pub fn up() -> Self {Self::new(T::zero(), T::one(), T::zero())}
+    pub fn right() -> Self {Self::new(T::one(), T::zero(), T::zero())}
+
+    pub fn forward() -> Self {Self::new(T::zero(), T::zero(), T::one())}
 }
 
 // Floating-point specific methods
@@ -584,6 +589,27 @@ impl Transform {
         // Update position with the rotated values
         self.position = position;
     }
+    pub fn rotate_around_axis(&mut self, axis: Vec3<f32>, angle_degrees: f32) {
+        // Normalize the axis to ensure consistent behavior
+        let axis = axis.normalize();
+
+        // Apply rotation based on the axis (angles stored in degrees)
+        if axis.x.abs() > 0.0 {
+            self.rotation.x += axis.x * angle_degrees;
+        }
+        if axis.y.abs() > 0.0 {
+            self.rotation.y += axis.y * angle_degrees;
+        }
+        if axis.z.abs() > 0.0 {
+            self.rotation.z += axis.z * angle_degrees;
+        }
+
+        // Ensure angles stay within [0, 360)
+        self.rotation.x = self.rotation.x.rem_euclid(360.0);
+        self.rotation.y = self.rotation.y.rem_euclid(360.0);
+        self.rotation.z = self.rotation.z.rem_euclid(360.0);
+    }
+
 }
 
 impl Default for Transform {

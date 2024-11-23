@@ -61,7 +61,7 @@ impl Camera {
     }
 
     pub fn raytrace(&self, img: &mut Image){
-        let print_progress = false;
+        let print_progress = true;
 
         let mut world = World::new();
         world.default_scene();
@@ -75,7 +75,6 @@ impl Camera {
                 self.cast_ray(&mut ray, &world);
                 img.setf(pixel, ray.color)
             }
-            println!();
             // Report progress
             if y % step == 0 && print_progress {
                 let progress = (y as f32 / total_scanlines as f32) * 100.0;
@@ -87,13 +86,13 @@ impl Camera {
         }
     }
     fn sky_color(&self, direction: Vec3<f32>) -> Vec3<f32> {
-        // // Linear interpolation based on the y-component of the direction
-        // let a = 0.5 * (direction.y + 1.0);
-        // // Interpolate between white and sky blue
-        // Vec3::new(1.0f32, 1.0, 1.0) * (1.0 - a) + Vec3::new(0.5f32, 0.7, 1.0) * a
+        // Linear interpolation based on the y-component of the direction
+        let a = 0.5 * (direction.y + 1.0);
+        // Interpolate between white and sky blue
+        Vec3::new(1.0f32, 1.0, 1.0) * (1.0 - a) + Vec3::new(0.5f32, 0.7, 1.0) * a
 
 
-        vec3!(direction.x, direction.y, direction.z)
+        // vec3!(direction.x, direction.y, direction.z)
     }
 }
 impl Default for Camera {
