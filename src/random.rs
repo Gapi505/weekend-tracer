@@ -36,7 +36,11 @@ impl Random {
     }
     pub fn random_in_unit_sphere(&mut self) -> Vec3<f32>{
         loop{
-            let p = Vec3::new(self.randf(), self.randf(), self.randf());
+            let p = Vec3::new(
+                self.randr(-1.0, 1.0),
+                self.randr(-1.0, 1.0),
+                self.randr(-1.0, 1.0),
+            );
             let lensq = p.length_sq();
             if lensq < 1.0 && lensq > f32::MIN_POSITIVE { return p}
         }

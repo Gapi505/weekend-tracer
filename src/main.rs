@@ -20,7 +20,7 @@ fn main() {
 
     //init camera
     let mut camera = Camera::new(
-        1000.,
+        1080.,
         16./9.,
         Transform::new_at(vec3!(0.,2.,-3.)),
         90.);

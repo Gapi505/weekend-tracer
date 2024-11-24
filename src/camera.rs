@@ -54,15 +54,15 @@ impl Camera {
         Ray::new(self.transform.position, dir.normalize().rotate_around_origin(self.transform.rotation))
     }
 
-    fn cast_ray(&self, ray: &mut Ray, world: &World, depth: i32, rng: &mut Random) -> Vec3<f32>{
-        if depth > self.max_bounces as i32 {
+    fn cast_ray(&self, ray: &mut Ray, world: &World, depth: usize, rng: &mut Random) -> Vec3<f32>{
+        if depth > self.max_bounces {
             return vec3!(0.0, 0.0, 0.0);
         }
         let hit = world.collide(&ray);
         // print!("{}", hit.hit);
         if hit.hit{
-            let dir = (hit.normal + rng.random_unit_vector()).normalize();
-            // let dir = hit.material.scatter(hit.normal, ray.direction, rng);
+            // let dir = (hit.normal + rng.random_unit_vector()).normalize();
+            let (dir, attenuation) = hit.material.scatter(hit.normal, ray.direction, rng, hit.front_face);
             // let dir = hit.normal;
             let reflected_color= self.cast_ray(
                 &mut Ray::new(hit.position, dir),
@@ -73,7 +73,7 @@ impl Camera {
             // let albedo = hit.material.albedo;
             // let emission = hit.material.emission;
             // ray.color = (reflected_color * albedo) + emission;
-            ray.color = reflected_color;
+            ray.color = (reflected_color * attenuation) + hit.material.emission * hit.material.emission_strength;
             ray.color *= self.gamut;
             return ray.color;
         }
@@ -85,7 +85,7 @@ impl Camera {
     pub fn raytrace(&self, img: &mut Image, world: &World, rng: &mut Random) {
         let print_progress = true;
         let total_scanlines = self.res.y;
-        let step = (total_scanlines / 100).max(1); // Ensure we at least update once per step
+        let step = (total_scanlines / 1080).max(1); // Ensure we at least update once per step
         let pixel_sample_influence = 1. / self.samples_per_pixel as f32;
         println!();
         for y in 0..self.res.y {
@@ -129,8 +129,8 @@ impl Default for Camera {
             transform: Transform::default(),
             fov: vec2!(90., 75.),
             delta: vec2!(0., 0.),
-            samples_per_pixel: 200,
-            max_bounces: 50,
+            samples_per_pixel: 500,
+            max_bounces: 20,
             gamut: 0.5,
         }
     }

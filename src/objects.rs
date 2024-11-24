@@ -11,7 +11,7 @@ pub struct HitRecord{
     t: f32,
     pub normal: Vec3<f32>,
     pub position: Vec3<f32>,
-    front_face: bool,
+    pub(crate) front_face: bool,
     pub(crate) material: Material,
 }
 impl HitRecord{
@@ -137,49 +137,68 @@ impl World {
     pub fn add(&mut self, object: Object) {
         self.objects.push(object);
     }
-    pub fn default_scene(&mut self){
-        let mut sphere1 = Object::new_sphere(
+    pub fn default_scene(&mut self) {
+        let sphere1 = Object::new_sphere_with_material(
             Transform::new_at(vec3!(0., 0., 5.)),
-            1.);
-        let floor = Object::new_sphere(
-            Transform::new_at(vec3!(0., -6., 5.)),
-            5.);
-        let mut sphere2 = Object::new_sphere(
-            Transform::new_at(vec3!(-1.25, -0.3, 4.4)),
-            0.5
+            1.,
+            Material::new(
+                vec3!(0.2, 0.7, 0.9), // albedo
+                0.9,                       // metalness
+                0.2,                       // roughness
+                0.0,                       // transmission
+            ),
         );
-        sphere1.material.metalness = 0.9;
-        sphere1.material.roughness = 0.2;
-        sphere1.material.albedo = vec3!(0.22, 0.753, 0.949);
 
-        sphere2.material.albedo = vec3!(1., 0.2, 0.2);
+        let floor = Object::new_sphere_with_material(
+            Transform::new_at(vec3!(0., -6., 5.)),
+            5.,
+            Material::new_diffuse(Vec3::one()),
+        );
 
-        let mut sphere3 = Object::new_sphere(
+        let sphere2 = Object::new_sphere_with_material(
+            Transform::new_at(vec3!(-1.25, -0.3, 4.4)),
+            0.5,
+            Material::new_diffuse(vec3!(1., 0.1, 0.1)),
+        );
+
+        let sphere3 = Object::new_sphere_with_material(
             Transform::new_at(vec3!(2., 0.5, 5.)),
             0.9,
+            Material::new_light(vec3!(2., 0.5, 0.5), 10.),
         );
-        sphere3.material.emission = vec3!(2., 0.5, 0.5);
+        let sphere4 = Object::new_sphere_with_material(
+            Transform::new_at(vec3!(1., 2., 5.)),
+            0.7,
+            Material::new(
+                vec3!(0.3, 1., 0.1),
+                1.,
+                0.,
+                0.,
+            )
+        );
 
-        let mut glass_ball = Object::new_sphere(
+        let glass_ball = Object::new_sphere_with_material(
             Transform::new_at(vec3!(-0.6, 0.1, 3.)),
-            0.6
+            0.6,
+            Material::new(
+                Vec3::one(), // albedo
+                0.0,         // metalness
+                0.0,         // roughness
+                1.0,         // transmission
+            ).with_ior(1.47),
         );
-        glass_ball.material.albedo = Vec3::one();
-        glass_ball.material.transmission = 1.;
-        glass_ball.material.ior = 1.47;
-        glass_ball.material.roughness = 0.0;
 
-
-        let mut light2 = Object::new_sphere(
-            Transform::new_at(vec3!(-3., 1., 3.)),
-            0.3
+        let light2 = Object::new_sphere_with_material(
+            Transform::new_at(vec3!(-3., 1., 4.)),
+            1.,
+            Material::new_light(vec3!(1., 1., 1.), 10.),
         );
-        light2.material.emission = vec3!(7.,7., 7.);
 
         self.add(sphere1);
         self.add(sphere2);
-        self.add(floor);
         self.add(sphere3);
+        self.add(sphere4);
+        self.add(floor);
         self.add(glass_ball);
         self.add(light2);
     }
@@ -193,7 +212,7 @@ impl World {
         let sphere2 = Object::new_sphere_with_material(
             Transform::new_at(vec3!(0., -11., 5.)),
             10.,
-            Material::new_diffuse(Vec3::new(1., 1., 1.)),
+            Material::new_diffuse(Vec3::new(1., 1., 1.)).with_roughness(0.1),
         );
         self.add(sphere1);
         self.add(sphere2);
@@ -220,11 +239,12 @@ impl World {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Material{
-    pub(crate) albedo: Vec3::<f32>,
+    pub albedo: Vec3::<f32>,
     metalness: f32,
     roughness: f32,
     ior: f32,
-    pub(crate) emission: Vec3::<f32>,
+    pub emission: Vec3::<f32>,
+    pub emission_strength: f32,
     transmission: f32,
 
 }
@@ -235,15 +255,179 @@ impl Material{
             ..Self::default()
         }
     }
-    pub(crate) fn scatter(&self, normal: Vec3<f32>, direction: Vec3<f32>, rng: &mut Random) -> Vec3<f32> {
-        let out = rng.random_unit_vector() + normal;
-        out
+    pub fn new_light(emission: Vec3<f32>, emission_strength: f32) -> Self{
+        Self{
+            emission,
+            emission_strength,
+            ..Self::default()
+        }
+    }
+    pub fn new(albedo: Vec3<f32>, metalness: f32, roughness: f32, transmission: f32) -> Self{
+        Self{
+            albedo,
+            metalness,
+            roughness,
+            transmission,
+            ..Self::default()
+        }
+    }
+
+    pub fn with_ior(&mut self, ior: f32) -> Self{
+        self.ior = ior;
+        *self
+    }
+    pub fn with_roughness(&mut self, roughness: f32) -> Self{
+        self.roughness = roughness;
+        *self
+    }
+    pub(crate) fn scatter(
+        &self,
+        normal: Vec3<f32>,
+        direction: Vec3<f32>,
+        rng: &mut Random,
+        is_front_face: bool,
+    ) -> (Vec3<f32>, Vec3<f32>) {
+        let unit_direction = direction.normalize();
+        // let is_front_face = unit_direction.dot(normal) < 0.0;
+        // let normal = if is_front_face { normal } else { -normal };
+
+        // Handle emission
+        if self.emission_strength > 0.0 {
+            let emitted = self.emission * self.emission_strength;
+            // Emission doesn't scatter further; return early
+            return (Vec3::zero(), emitted);
+        }
+
+        // Clamp material properties once to avoid redundant operations
+        let metalness = self.metalness.clamp(0.0, 1.0);
+        let roughness = self.roughness.clamp(0.0, 1.0);
+        let transmission = self.transmission.clamp(0.0, 1.0);
+
+        // Early return for pure diffuse materials
+        if metalness == 0.0 && transmission == 0.0 {
+            let scattered_direction = normal + rng.random_unit_vector() * roughness;
+            let attenuation = self.albedo;
+            return (scattered_direction.normalize(), attenuation);
+        }
+
+        let mut attenuation = self.albedo;
+        let mut scattered_direction = Vec3::zero();
+
+        // Compute Fresnel reflectance using Schlick's approximation
+        let cos_theta = (-unit_direction).dot(normal).min(1.0);
+        let mut reflectance = self.schlick(cos_theta, self.ior);
+
+        // Adjust reflectance based on metalness
+        reflectance = reflectance * (1.0 - metalness) + metalness;
+
+        // Skip refraction calculations if transmission is zero
+        if transmission == 0.0 {
+            // Only consider reflection and diffuse scattering
+            let diffuse_prob = (1.0 - reflectance) * (1.0 - metalness);
+            let specular_prob = reflectance;
+
+            // Normalize probabilities
+            let sum = diffuse_prob + specular_prob;
+            let diffuse_prob = diffuse_prob / sum;
+            let specular_prob = specular_prob / sum;
+
+            let random_choice = rng.randf();
+
+            if random_choice < diffuse_prob {
+                // Diffuse reflection (Lambertian)
+                scattered_direction = normal + rng.random_unit_vector() * roughness;
+                attenuation = self.albedo;
+            } else {
+                // Specular reflection
+                let reflected = reflect(unit_direction, normal);
+                scattered_direction = reflected + roughness * rng.random_in_unit_sphere();
+                attenuation = if metalness > 0.0 {
+                    self.albedo
+                } else {
+                    Vec3::one()
+                };
+            }
+        } else {
+            // Transmission is non-zero; include refraction calculations
+            let diffuse_prob = (1.0 - reflectance) * (1.0 - metalness) * (1.0 - transmission);
+            let specular_prob = reflectance * (1.0 - transmission);
+            let transmission_prob = transmission;
+
+            // Normalize probabilities
+            let sum = diffuse_prob + specular_prob + transmission_prob;
+            let diffuse_prob = diffuse_prob / sum;
+            let specular_prob = specular_prob / sum;
+            let transmission_prob = transmission_prob / sum;
+
+            let random_choice = rng.randf();
+
+            if random_choice < diffuse_prob {
+                // Diffuse reflection
+                scattered_direction = normal + rng.random_unit_vector() * roughness;
+                attenuation = self.albedo;
+            } else if random_choice < diffuse_prob + specular_prob {
+                // Specular reflection
+                let reflected = reflect(unit_direction, normal);
+                scattered_direction = reflected + roughness * rng.random_in_unit_sphere();
+                attenuation = if metalness > 0.0 {
+                    self.albedo
+                } else {
+                    Vec3::one()
+                };
+            } else {
+                // Transmission (Refraction)
+                let refraction_ratio = if is_front_face {
+                    1.0 / self.ior
+                } else {
+                    self.ior
+                };
+
+                // Perform refraction calculation only when necessary
+                if let Some(refracted_direction) =
+                    refract(unit_direction, normal, refraction_ratio)
+                {
+                    scattered_direction =
+                        refracted_direction + roughness * rng.random_in_unit_sphere();
+                    attenuation = Vec3::one(); // Assume no attenuation for transmission
+                } else {
+                    // Total internal reflection
+                    let reflected = reflect(unit_direction, normal);
+                    scattered_direction = reflected + roughness * rng.random_in_unit_sphere();
+                    attenuation = if metalness > 0.0 {
+                        self.albedo
+                    } else {
+                        Vec3::one()
+                    };
+                }
+            }
+        }
+
+        (scattered_direction.normalize(), attenuation)
     }
 
     // Schlick approximation for Fresnel effect
     fn schlick(&self, cosine: f32, ior: f32) -> f32 {
         let r0 = ((1.0 - ior) / (1.0 + ior)).powi(2);
         r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
+    }
+}
+
+
+// Helper function to reflect a vector
+fn reflect(v: Vec3<f32>, n: Vec3<f32>) -> Vec3<f32> {
+    v - 2.0 * v.dot(n) * n
+}
+
+fn refract(v: Vec3<f32>, n: Vec3<f32>, eta: f32) -> Option<Vec3<f32>> {
+    let cos_theta = (-v).dot(n).min(1.0);
+    let sin_theta2 = 1.0 - cos_theta * cos_theta;
+    let eta2 = eta * eta;
+    if eta2 * sin_theta2 > 1.0 {
+        None // Total internal reflection
+    } else {
+        let r_out_perp = eta * (v + cos_theta * n);
+        let r_out_parallel = -((1.0 - r_out_perp.length_sq()).abs().sqrt()) * n;
+        Some(r_out_perp + r_out_parallel)
     }
 }
 
@@ -256,6 +440,7 @@ impl Default for Material {
             ior: 1.,
             emission: Vec3::zero(),
             transmission: 0.,
+            emission_strength: 0.,
         }
     }
 }
