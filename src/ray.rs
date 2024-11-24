@@ -5,8 +5,7 @@ pub(crate) struct Ray{
     pub(crate) origin: Vec3<f32>,
     pub(crate) direction: Vec3<f32>,
     pub color: Vec3<f32>,
-    pub min: f32,
-    pub max: f32,
+    pub interval: Interval,
 }
 impl Ray{
     pub(crate) fn new(origin: Vec3<f32>, direction: Vec3<f32>) -> Self{
@@ -23,9 +22,42 @@ impl Default for Ray{
             origin: Vec3::zero(),
             direction: vec3![0., 0., 1.],
             color: Vec3::zero(),
-            min: 0.,
-            max: f32::INFINITY,
+            interval: Interval::new(0.00001, f32::INFINITY),
         }
+    }
+}
+
+
+pub struct Interval{
+    pub(crate) min: f32,
+    pub(crate) max: f32,
+}
+impl Interval{
+    pub fn new(min: f32, max: f32) -> Self{
+        Self{min, max}
+    }
+    pub fn zero_to(to: f32) -> Self{
+        Self{min:0., max:to}
+    }
+    pub fn size(&self) -> f32{
+        self.max - self.min
+    }
+    pub fn contains(&self, t:f32) -> bool {
+        self.min <= t && t <= self.max
+    }
+    pub fn surrounds(&self, t:f32) -> bool{
+        self.min < t && t < self.max
+    }
+    pub fn empty() -> Self{
+        Self{min:f32::INFINITY, max:-f32::INFINITY}
+    }
+    pub fn universe() -> Self{
+        Self{min:-f32::INFINITY, max:f32::INFINITY}
+    }
+    pub fn clamp(&self, x:f32)->f32{
+        if x<self.min{return self.min};
+        if x>self.max{return self.max};
+        x
     }
 }
 

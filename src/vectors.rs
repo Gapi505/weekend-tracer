@@ -284,6 +284,28 @@ where
     }
 }
 
+impl<T> Mul for Vec3<T>
+where
+    T: Copy + Mul<Output = T>,
+{
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self::Output {
+        Self::new(
+            self.x * other.x,
+            self.y * other.y,
+            self.z * other.z,
+        )
+    }
+}
+impl Mul<Vec3<f32>> for f32 {
+    type Output = Vec3<f32>;
+
+    fn mul(self, vec: Vec3<f32>) -> Self::Output {
+        Vec3::new(self * vec.x, self * vec.y, self * vec.z)
+    }
+}
+
 impl<T> MulAssign<T> for Vec3<T>
 where
     T: Copy + MulAssign,
