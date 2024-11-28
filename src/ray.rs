@@ -6,10 +6,14 @@ pub(crate) struct Ray{
     pub(crate) direction: Vec3<f32>,
     pub color: Vec3<f32>,
     pub interval: Interval,
+    pub time: f32,
 }
 impl Ray{
     pub(crate) fn new(origin: Vec3<f32>, direction: Vec3<f32>) -> Self{
         Self{origin, direction, color: Vec3::<f32>::zero(), ..Self::default()}
+    }
+    pub fn new_at_time(origin: Vec3<f32>, direction: Vec3<f32>, time: f32) -> Self{
+        Self{origin, direction, time,..Self::default()}
     }
     pub(crate) fn at(&self, t: f32) -> Vec3<f32>{
         self.origin + self.direction * t
@@ -23,6 +27,7 @@ impl Default for Ray{
             direction: vec3![0., 0., 1.],
             color: Vec3::zero(),
             interval: Interval::new(0.00001, f32::INFINITY),
+            time: 0.,
         }
     }
 }

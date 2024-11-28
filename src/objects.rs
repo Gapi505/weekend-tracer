@@ -1,3 +1,4 @@
+use num_traits::ToPrimitive;
 use crate::camera::{Camera, ToLocalSpace};
 use crate::random::Random;
 use crate::vectors::{Transform, Vec3};
@@ -37,23 +38,34 @@ impl Default for HitRecord {
 }
 
 pub enum ObjectType{
-    Sphere
+    Sphere,
+    MovingSphere,
 }
 pub struct Object{
     transform: Transform,
+    moved_transform: Transform,
     object_type: ObjectType,
     radius: f32,
     pub material: Material,
 }
 impl Object{
     pub fn new(transform: Transform, object_type: ObjectType, radius: f32) -> Object {
-        Object{transform, object_type, radius, material: Material::default()}
+        Object{transform, object_type, radius, material: Material::default(), moved_transform: transform}
     }
     pub fn new_sphere(transform: Transform, radius: f32) -> Object {
-        Object{transform, object_type: ObjectType::Sphere, radius, material: Material::default()}
+        Object{transform, object_type: ObjectType::Sphere, radius, material: Material::default(), moved_transform: transform}
     }
     pub fn new_sphere_with_material(transform: Transform, radius: f32, material: Material) -> Object {
-        Object{transform, object_type: ObjectType::Sphere, radius, material}
+        Object{transform, object_type: ObjectType::Sphere, radius, material, moved_transform: transform}
+    }
+    pub fn new_moving_sphere_with_material(transform: Transform, moved_transform: Transform, radius: f32, material: Material) -> Object {
+        Object{
+            transform,
+            moved_transform,
+            radius,
+            material,
+            object_type: ObjectType::MovingSphere,
+        }
     }
     fn collide_sphere(&self, ray: &Ray) -> HitRecord {
         let mut hit = HitRecord::default();
@@ -99,9 +111,14 @@ impl Object{
 
         hit
     }
+
+    fn collide_moving_sphere(&self, ray: &Ray) -> HitRecord{
+        self.collide_sphere(ray)
+    }
     pub(crate) fn collide(&self, ray: &Ray) -> HitRecord{
         match self.object_type {
             ObjectType::Sphere => {self.collide_sphere(ray)},
+            ObjectType::MovingSphere => {self.collide_moving_sphere(ray)}
         }
     }
 }
@@ -109,7 +126,7 @@ impl Object{
 #[test]
 fn normal_center(){
     let mut ray = Ray::new(Vec3::zero(), Vec3::new(0.0, 0., 1.));
-    let sphere = Object::new_sphere(Transform::new_at(vec3!(0.,0., 5.)), 1.);
+    let sphere = Object::new_sphere(Transform::at(vec3!(0.,0., 5.)), 1.);
     let hit = sphere.collide(&mut ray);
     assert_eq!(hit.normal, vec3!(0.,0.,-1.));
 }
@@ -118,10 +135,11 @@ fn normal_center(){
 impl Default for Object{
     fn default() -> Self {
         Self{
-            transform: Transform::new_at(Vec3::zero()),
+            transform: Transform::at(Vec3::zero()),
             object_type: ObjectType::Sphere,
             radius: 1.0,
-            material: Material::default()
+            material: Material::default(),
+            moved_transform: Transform::at(Vec3::zero()),
         }
     }
 }
@@ -139,35 +157,40 @@ impl World {
     }
     pub fn default_scene(&mut self) {
         let sphere1 = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(0., 0., 5.)),
+            Transform::at(vec3!(0., 0., 5.)),
             1.,
             Material::new(
                 vec3!(0.2, 0.7, 0.9), // albedo
                 0.9,                       // metalness
-                0.2,                       // roughness
+                0.4,                       // roughness
                 0.0,                       // transmission
             ),
         );
 
         let floor = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(0., -6., 5.)),
+            Transform::at(vec3!(0., -6., 5.)),
             5.,
             Material::new_diffuse(Vec3::one()),
         );
 
         let sphere2 = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(-1.25, -0.3, 4.4)),
+            Transform::at(vec3!(-1.25, -0.3, 4.4)),
             0.5,
             Material::new_diffuse(vec3!(1., 0.1, 0.1)),
         );
 
         let sphere3 = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(2., 0.5, 5.)),
+            Transform::at(vec3!(3., 2., 5.)),
             0.9,
-            Material::new_light(vec3!(2., 0.5, 0.5), 10.),
+            Material::new(
+                vec3!(1., 0.2, 0.2),
+                0.9,
+                0.05,
+                0.
+            ),
         );
         let sphere4 = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(1., 2., 5.)),
+            Transform::at(vec3!(1., 2., 5.)),
             0.7,
             Material::new(
                 vec3!(0.3, 1., 0.1),
@@ -178,21 +201,46 @@ impl World {
         );
 
         let glass_ball = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(-0.6, 0.1, 3.)),
+            Transform::at(vec3!(-0.6, 0.1, 3.)),
             0.6,
             Material::new(
                 Vec3::one(), // albedo
                 0.0,         // metalness
-                0.0,         // roughness
+                0.001,         // roughness
                 1.0,         // transmission
             ).with_ior(1.47),
         );
 
-        let light2 = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(-3., 1., 4.)),
+        let another_ball = Object::new_sphere_with_material(
+            Transform::at(vec3!(-3., 1., 4.)),
             1.,
-            Material::new_light(vec3!(1., 1., 1.), 10.),
+            Material::new_diffuse(vec3!(1., 1., 1.)).with_emission(vec3!(1.,1.,1.), 1.),
         );
+        let close_sphere = Object::new_sphere_with_material(
+            Transform::at(vec3!(1., 1., 3.)),
+            0.5,
+            Material::new_diffuse(vec3!(0.2, 0.8, 0.8)),
+        );
+
+        let big_mirror = Object::new_sphere_with_material(
+            Transform::at(vec3!(-8., -2., 11.5)),
+            8.,
+            Material::new(
+                vec3!(0.9, 0.9, 0.9),
+                1.,
+                0.0,
+                0.
+            ),
+        );
+
+        for z in 1..10{
+            let depth_ball = Object::new_sphere_with_material(
+                Transform::at(vec3!(3., -1., z as f32)),
+                0.5,
+                Material::new_diffuse(vec3!(0.2, 0.8, 0.8)),
+            );
+            self.add(depth_ball);
+        }
 
         self.add(sphere1);
         self.add(sphere2);
@@ -200,22 +248,39 @@ impl World {
         self.add(sphere4);
         self.add(floor);
         self.add(glass_ball);
-        self.add(light2);
+        self.add(another_ball);
+        self.add(close_sphere);
+        self.add(big_mirror);
     }
 
     pub fn simple_scene(&mut self){
         let sphere1 = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(0., 0., 5.)),
+            Transform::at(vec3!(0., 0., 5.)),
             1.,
             Material::new_diffuse(Vec3::new(1., 1., 1.)),
         );
         let sphere2 = Object::new_sphere_with_material(
-            Transform::new_at(vec3!(0., -11., 5.)),
+            Transform::at(vec3!(0., -11., 5.)),
             10.,
             Material::new_diffuse(Vec3::new(1., 1., 1.)).with_roughness(0.1),
         );
         self.add(sphere1);
         self.add(sphere2);
+    }
+
+    pub fn refraction_test(&mut self){
+        let ground = Object::new_sphere_with_material(
+            Transform::at(vec3!(0., -21., 5.)),
+            20.,
+            Material::new_diffuse(Vec3::new(1., 1., 1.)),
+        );
+        let glass_ball = Object::new_sphere_with_material(
+            Transform::at(vec3!(0., 0., 5.)),
+            1.,
+            Material::new_translucent(1., 0., 1.37)
+        );
+        self.add(glass_ball);
+        self.add(ground);
     }
 
     pub fn collide(&self, ray: &Ray) -> HitRecord{
@@ -262,6 +327,14 @@ impl Material{
             ..Self::default()
         }
     }
+    pub fn new_translucent(transmission: f32, roughness: f32, ior: f32) -> Self{
+        Self{
+            transmission,
+            roughness,
+            ior,
+            ..Self::default()
+        }
+    }
     pub fn new(albedo: Vec3<f32>, metalness: f32, roughness: f32, transmission: f32) -> Self{
         Self{
             albedo,
@@ -278,6 +351,24 @@ impl Material{
     }
     pub fn with_roughness(&mut self, roughness: f32) -> Self{
         self.roughness = roughness;
+        *self
+    }
+    pub fn with_emission(&mut self, emission: Vec3<f32>, emission_strength: f32) -> Self{
+        self.emission = emission;
+        self.emission_strength = emission_strength;
+        *self
+    }
+    pub fn with_albedo(&mut self, albedo: Vec3<f32>) -> Self{
+        self.albedo = albedo;
+        *self
+    }
+    pub fn with_metalness(&mut self, metalness: f32) -> Self{
+        self.metalness = metalness;
+        *self
+    }
+    pub fn with_transmission(&mut self, transmission: f32, ior: f32) -> Self{
+        self.transmission = transmission;
+        self.ior = ior;
         *self
     }
     pub(crate) fn scatter(

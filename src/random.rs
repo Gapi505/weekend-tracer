@@ -22,6 +22,15 @@ impl Random {
     pub fn sample_square(&mut self)  -> Vec2<f32> {
         vec2!(self.rng.random::<f32>(), self.rng.random::<f32>())
     }
+    pub fn sample_circle(&mut self) -> Vec2<f32> {
+        loop{
+            let s = self.sample_square()*2. - vec2!(1.);
+            let d = s.length_sq();
+            if d < 1. {
+                return s;
+            }
+        }
+    }
 
     pub fn random_unit_vector(&mut self) -> Vec3<f32>{
         loop{

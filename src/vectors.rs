@@ -48,6 +48,9 @@ where
     pub fn length(&self) -> T {
         (self.x * self.x + self.y * self.y).sqrt()
     }
+    pub fn length_sq(&self) -> T {
+        (self.x * self.x + self.y * self.y)
+    }
 
     pub fn normalize(&self) -> Self {
         let len = self.length();
@@ -69,7 +72,15 @@ where
         Self::new(self.x + other.x, self.y + other.y)
     }
 }
-
+impl<T> AddAssign for Vec2<T>
+where
+    T: Copy + Num,
+{
+    fn add_assign(&mut self, rhs: Self) {
+        self.x = self.x + rhs.x;
+        self.y = self.y + rhs.y;
+    }
+}
 impl<T> Sub for Vec2<T>
 where
     T: Copy + Num,
@@ -155,10 +166,17 @@ where
 // General numeric methods (like `dot`, `zero`, `one`) that require `Zero` and `One`
 impl<T> Vec3<T>
 where
-    T: Copy + Add<Output = T> + Mul<Output = T> + Zero + One,
+    T: Copy + Add<Output = T> + Mul<Output = T> + Zero + One + Sub<Output = T>,
 {
     pub fn dot(&self, other: Vec3<T>) -> T {
         self.x * other.x + self.y * other.y + self.z * other.z
+    }
+    pub fn cross(&self, other: Vec3<T>) -> Vec3<T> {
+        Vec3 {
+            x: self.y * other.z - self.z * other.y,
+            y: self.z * other.x - self.x * other.z,
+            z: self.x * other.y - self.y * other.x,
+        }
     }
 
     pub fn zero() -> Self {
@@ -563,75 +581,73 @@ macro_rules! vec4 {
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct Transform{
     pub position: Vec3<f32>,
-    pub rotation: Vec3<f32>,
+    pub rotation: Vec3<f32>, // Euler angles
+    pub direction: Vec3<f32>, // Directional vector. Represents the same value as rotation but different format
     pub scale: Vec3<f32>,
 }
 impl Transform {
-    pub fn new(position: Vec3<f32>, rotation: Vec3<f32>, scale: Vec3<f32>) -> Self {
-        Self { position, rotation, scale }
-    }
-    pub fn new_at(position: Vec3<f32>) -> Self {
-        Self{position, ..Self::default()}
-    }
-    pub fn translate(&mut self, translation: Vec3<f32>) {
-        self.position += translation;
-    }
-    pub fn rotate_by(&mut self, rotation: Vec3<f32>) {
-        self.rotation += rotation;
-    }
-    pub fn rotate_around_origin(&mut self, rotation: Vec3<f32>) {
-        // Convert rotation to radians
-        let rot_x = rotation.x.to_radians();
-        let rot_y = rotation.y.to_radians();
-        let rot_z = rotation.z.to_radians();
-
-        let mut position = self.position;
-
-        // Rotate around X-axis
-        position = Vec3::new(
-            position.x,
-            position.y * rot_x.cos() - position.z * rot_x.sin(),
-            position.y * rot_x.sin() + position.z * rot_x.cos(),
-        );
-
-        // Rotate around Y-axis
-        position = Vec3::new(
-            position.x * rot_y.cos() + position.z * rot_y.sin(),
-            position.y,
-            -position.x * rot_y.sin() + position.z * rot_y.cos(),
-        );
-
-        // Rotate around Z-axis
-        position = Vec3::new(
-            position.x * rot_z.cos() - position.y * rot_z.sin(),
-            position.x * rot_z.sin() + position.y * rot_z.cos(),
-            position.z,
-        );
-
-        // Update position with the rotated values
-        self.position = position;
-    }
-    pub fn rotate_around_axis(&mut self, axis: Vec3<f32>, angle_degrees: f32) {
-        // Normalize the axis to ensure consistent behavior
-        let axis = axis.normalize();
-
-        // Apply rotation based on the axis (angles stored in degrees)
-        if axis.x.abs() > 0.0 {
-            self.rotation.x += axis.x * angle_degrees;
+    pub fn new(position: Vec3<f32>, rotation: Vec3<f32>, direction: Vec3<f32>, scale: Vec3<f32>) -> Self {
+        Self{
+            position,
+            rotation,
+            direction,
+            scale,
         }
-        if axis.y.abs() > 0.0 {
-            self.rotation.y += axis.y * angle_degrees;
+    }
+    pub fn at(position: Vec3<f32>) -> Self {
+        Self{
+            position,
+            ..Default::default()
         }
-        if axis.z.abs() > 0.0 {
-            self.rotation.z += axis.z * angle_degrees;
-        }
+    }
+    pub fn facing(&mut self, facing: Vec3<f32>) -> &mut Self {
+        self.direction = facing;
+        self
+    }
+    /// updates rotation based on direction. they should represent the same value
+    pub fn update_rot(&mut self) -> Vec3<f32> {
+        // Normalize the direction vector to ensure it's a unit vector
+        let dir = self.direction.normalize();
 
-        // Ensure angles stay within [0, 360)
-        self.rotation.x = self.rotation.x.rem_euclid(360.0);
-        self.rotation.y = self.rotation.y.rem_euclid(360.0);
-        self.rotation.z = self.rotation.z.rem_euclid(360.0);
+        // Calculate the pitch (rotation around the X-axis)
+        let pitch = dir.y.asin();
+
+        // Calculate the yaw (rotation around the Y-axis)
+        let yaw = dir.x.atan2(dir.z);
+
+        // Update the rotation vector (keeping the roll the same)
+        self.rotation = vec3![yaw, pitch, self.rotation.z];
+
+        // Return the updated rotation
+        self.rotation
     }
 
+    pub fn update_dir(&mut self) -> Vec3<f32> {
+        let (yaw_sin, yaw_cos) = self.rotation.x.sin_cos();
+        let (pitch_sin, pitch_cos) = self.rotation.y.sin_cos();
+
+        self.direction = vec3![
+        pitch_cos * yaw_sin,  // X component
+        pitch_sin,            // Y component
+        pitch_cos * yaw_cos   // Z component
+    ];
+        self.direction
+    }
+    /// Returns the right vector based on the current direction
+    pub fn right(&self) -> Vec3<f32> {
+        // World up vector (usually fixed to Y axis)
+        let world_up = vec3![0.0, 1.0, 0.0];
+        // Calculate the right vector
+        self.direction.cross(world_up).normalize()
+    }
+
+    /// Returns the up vector based on the current direction
+    pub fn up(&self) -> Vec3<f32> {
+        // Calculate the right vector
+        let right = self.right();
+        // Calculate the up vector
+        right.cross(self.direction).normalize()
+    }
 }
 
 impl Default for Transform {
@@ -639,8 +655,8 @@ impl Default for Transform {
         Self{
             position: vec3![0.,0.,0.],
             rotation: vec3![0.,0.,0.],
+            direction: vec3![0.,0.,1.],
             scale: vec3![0.,0.,0.]
-
         }
     }
 }
