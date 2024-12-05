@@ -55,7 +55,7 @@ impl Camera {
         cam
     }
 
-    /// old
+    /// old. do not use
     pub fn spawn_ray_at_pixel(&self, pixel: Vec2<usize>, rng: &mut Random) -> Ray {
         // Step 1: Center the pixel coordinates
         let mut centered_pixel = vec2!(
@@ -129,14 +129,14 @@ impl Camera {
         origin += self.transform.up() * r_ap.y * self.aperture;
         origin += self.transform.right() * r_ap.x * self.aperture;
         let ray_dir = (focal_point - origin).normalize();
-        Ray::new(origin, ray_dir)
+        Ray::new_at_time(origin, ray_dir, rng.randf())
     }
 
     fn cast_ray(&self, ray: &mut Ray, world: &World, depth: usize, rng: &mut Random) -> Vec3<f32> {
         if depth > self.max_bounces {
             return vec3!(0.0, 0.0, 0.0);
         }
-        let hit = world.collide(&ray);
+        let hit = world.collide(ray);
         // print!("{}", hit.hit);
         if hit.hit {
             // let dir = (hit.normal + rng.random_unit_vector()).normalize();
@@ -145,12 +145,13 @@ impl Camera {
                     .scatter(hit.normal, ray.direction, rng, hit.front_face);
             // let dir = hit.normal;
             let reflected_color =
-                self.cast_ray(&mut Ray::new(hit.position, dir), world, depth + 1, rng);
+                self.cast_ray(&mut Ray::new_at_time(hit.position, dir, ray.time), world, depth + 1, rng);
             // let albedo = hit.material.albedo;
             // let emission = hit.material.emission;
             // ray.color = (reflected_color * albedo) + emission;
             ray.color = (reflected_color * attenuation)
                 + hit.material.emission * hit.material.emission_strength;
+            //ray.color = hit.normal * 0.5 + vec3!(0.5);
             return ray.color;
         }
 
@@ -205,7 +206,7 @@ impl Default for Camera {
             transform: Transform::default(),
             fov: vec2!((90.).to_radians(), (90. / aspect).to_radians()),
             delta: vec2!(0., 0.),
-            samples_per_pixel: 20,
+            samples_per_pixel: 10,
             max_bounces: 20,
             gamut: 0.5,
             focal_length: 1.,

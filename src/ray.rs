@@ -1,6 +1,7 @@
 use crate::vec3;
 use crate::vectors::Vec3;
 
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Ray{
     pub(crate) origin: Vec3<f32>,
     pub(crate) direction: Vec3<f32>,
@@ -33,6 +34,7 @@ impl Default for Ray{
 }
 
 
+#[derive(Clone, Copy, Debug)]
 pub struct Interval{
     pub(crate) min: f32,
     pub(crate) max: f32,

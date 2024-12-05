@@ -142,7 +142,7 @@ macro_rules! vec2 {
 
 
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 pub struct Vec3<T> {
     pub x: T,
     pub y: T,
@@ -152,7 +152,7 @@ pub struct Vec3<T> {
 // Define the `new` method with minimal bounds (only `Copy`)
 impl<T> Vec3<T>
 where
-    T: Copy,
+    T: Copy
 {
     pub fn new(x: T, y: T, z: T) -> Self {
         Vec3 { x, y, z }
@@ -246,6 +246,13 @@ where
 
         // Update self with the final rotated vector
         rotated_z
+    }
+    pub fn lerp(&self, other: &Self, t: T) -> Self {
+        Self {
+            x: self.x + t * (other.x - self.x),
+            y: self.y + t * (other.y - self.y),
+            z: self.z + t * (other.z - self.z),
+        }
     }
 }
 
@@ -600,6 +607,13 @@ impl Transform {
             ..Default::default()
         }
     }
+    pub fn lerp(mut self, to: Transform, t: f32) -> Self {
+        self.position = self.position.lerp(&to.position, t);
+        self.rotation = self.rotation.lerp(&to.rotation, t);
+        self.scale = self.scale.lerp(&to.scale, t);
+        self.update_dir();
+        self
+    }
     pub fn facing(&mut self, facing: Vec3<f32>) -> &mut Self {
         self.direction = facing;
         self
@@ -660,3 +674,4 @@ impl Default for Transform {
         }
     }
 }
+

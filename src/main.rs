@@ -40,6 +40,7 @@ fn main() {
     //create world
     let mut world = World::new();
     world.default_scene();
+    world.build_bvtree();
 
     //render
     camera.raytrace(&mut img, &world, &mut random);
