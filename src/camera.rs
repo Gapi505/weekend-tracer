@@ -5,7 +5,6 @@ use crate::ray::Ray;
 use crate::vectors::{Transform, Vec2, Vec3};
 use crate::{vec2, vec3};
 use num_traits::real::Real;
-use std::ops::AddAssign;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Camera {
@@ -204,9 +203,9 @@ impl Default for Camera {
             aspect,
             res: vec2![256, 256],
             transform: Transform::default(),
-            fov: vec2!((90.).to_radians(), (90. / aspect).to_radians()),
+            fov: vec2!( 90. .to_radians(), (90. / aspect).to_radians()),
             delta: vec2!(0., 0.),
-            samples_per_pixel: 10,
+            samples_per_pixel: 500,
             max_bounces: 20,
             gamut: 0.5,
             focal_length: 1.,

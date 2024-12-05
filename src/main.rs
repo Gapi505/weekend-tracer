@@ -28,7 +28,7 @@ fn main() {
 
     //init camera
     let mut camera = Camera::new_facing(RESOLUTION_X.to_f32().unwrap(),
-                                        vec3!(0.0,1.0,-4.0), vec3!(0.0,0.0,5.),
+                                        vec3!(5.,4.0,-4.0), vec3!(0.0,0.0,5.),
     );
     println!("resolution: {}x{}px", camera.res.x, camera.res.y);
     println!("samples/px: {}, bounces: {}", camera.samples_per_pixel, camera.max_bounces);

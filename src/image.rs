@@ -1,10 +1,10 @@
+use crate::camera::Camera;
 use crate::vectors::{Vec2, Vec3};
-use crate::{camera, vec2, vec3};
+use crate::{vec2, vec3};
+use num_traits::float::FloatCore;
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
-use num_traits::float::FloatCore;
-use crate::camera::Camera;
 
 pub struct Image {
     size: Vec2<usize>,

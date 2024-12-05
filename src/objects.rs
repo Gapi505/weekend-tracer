@@ -1,9 +1,7 @@
-use num_traits::ToPrimitive;
-use crate::camera::{Camera, ToLocalSpace};
 use crate::random::Random;
-use crate::vectors::{Transform, Vec3};
 use crate::ray::{Interval, Ray};
 use crate::vec3;
+use crate::vectors::{Transform, Vec3};
 
 
 #[derive(Debug, Clone, Copy)]
@@ -577,11 +575,11 @@ impl World {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Material{
-    pub albedo: Vec3::<f32>,
+    pub albedo: Vec3<f32>,
     metalness: f32,
     roughness: f32,
     ior: f32,
-    pub emission: Vec3::<f32>,
+    pub emission: Vec3<f32>,
     pub emission_strength: f32,
     transmission: f32,
 
@@ -693,7 +691,7 @@ impl Material{
             // Normalize probabilities
             let sum = diffuse_prob + specular_prob;
             let diffuse_prob = diffuse_prob / sum;
-            let specular_prob = specular_prob / sum;
+            let _specular_prob = specular_prob / sum;
 
             let random_choice = rng.randf();
 
@@ -721,7 +719,7 @@ impl Material{
             let sum = diffuse_prob + specular_prob + transmission_prob;
             let diffuse_prob = diffuse_prob / sum;
             let specular_prob = specular_prob / sum;
-            let transmission_prob = transmission_prob / sum;
+            let _transmission_prob = transmission_prob / sum;
 
             let random_choice = rng.randf();
 
@@ -790,7 +788,7 @@ fn refract(v: Vec3<f32>, n: Vec3<f32>, eta: f32) -> Option<Vec3<f32>> {
         None // Total internal reflection
     } else {
         let r_out_perp = eta * (v + cos_theta * n);
-        let r_out_parallel = -((1.0 - r_out_perp.length_sq()).abs().sqrt()) * n;
+        let r_out_parallel = -(1.0 - r_out_perp.length_sq()).abs().sqrt() * n;
         Some(r_out_perp + r_out_parallel)
     }
 }

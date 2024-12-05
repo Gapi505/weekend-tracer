@@ -49,7 +49,7 @@ where
         (self.x * self.x + self.y * self.y).sqrt()
     }
     pub fn length_sq(&self) -> T {
-        (self.x * self.x + self.y * self.y)
+        self.x * self.x + self.y * self.y
     }
 
     pub fn normalize(&self) -> Self {
