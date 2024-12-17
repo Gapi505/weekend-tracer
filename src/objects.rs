@@ -467,9 +467,9 @@ impl World {
         );
         let earth_texture = ImageTexture::load("./textures/earth_texture_lowres.jpg");
 
-        let another_ball = Object::new_sphere_with_material(
-            Transform::at(vec3!(-3., -1.5, 3.)),
-            1.,
+        let earth = Object::new_sphere_with_material(
+            Transform::at(vec3!(-4., -1.5, 2.5)),
+            1.5,
             Material::new_diffuse(vec3!(1., 1., 1.)).with_texture(earth_texture),
         );
         let close_sphere = Object::new_sphere_with_material(
@@ -506,7 +506,7 @@ impl World {
         self.add(sphere4);
         self.add(floor);
         self.add(glass_ball);
-        self.add(another_ball);
+        self.add(earth);
         self.add(close_sphere);
         self.add(big_mirror);
         self.add(moving_ball)

@@ -27,7 +27,7 @@ impl Default for Ray{
             origin: Vec3::zero(),
             direction: vec3![0., 0., 1.],
             color: Vec3::zero(),
-            interval: Interval::new(0.00001, f32::INFINITY),
+            interval: Interval::new(0.001, f32::INFINITY),
             time: 0.,
         }
     }

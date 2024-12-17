@@ -87,7 +87,7 @@ async fn main() {
             let mut i = 0;
             while window.is_open() && !window.is_key_down(Key::Escape) && keep_tracing.load(Ordering::Relaxed) {
                 window.update_with_buffer(&window_buffer, res.x, res.y).unwrap();
-                if i >= 100{
+                if i >= res.x/10{
                     img_arc.lock().unwrap().update_buffer(&mut window_buffer);
                     i = 0;
                 }
@@ -103,7 +103,8 @@ async fn main() {
             // Await the async task
             tracer_async.await.unwrap();
             img_arc.lock().unwrap().accumulate();
-
+            img_arc.lock().unwrap().accumulated_data_denoise();
+            img_arc.lock().unwrap().update_data();
 
         }
         _ => {
