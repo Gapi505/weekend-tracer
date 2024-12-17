@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::image::Image;
 use crate::objects::World;
 use crate::random::Random;
@@ -6,7 +8,7 @@ use crate::vectors::{Transform, Vec2, Vec3};
 use crate::{vec2, vec3};
 use num_traits::real::Real;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Camera {
     viewport_width: f32,
     pub aspect: f32,
@@ -19,6 +21,7 @@ pub struct Camera {
     pub gamut: f32,
     focal_length: f32,
     aperture: f32,
+    pub keep_tracing: Arc<AtomicBool>,
 }
 
 impl Camera {
@@ -141,7 +144,7 @@ impl Camera {
             // let dir = (hit.normal + rng.random_unit_vector()).normalize();
             let (dir, attenuation) =
                 hit.material
-                    .scatter(hit.normal, ray.direction, rng, hit.front_face);
+                    .scatter(hit.normal, ray.direction, rng, hit.front_face, hit.uv);
             // let dir = hit.normal;
             let reflected_color =
                 self.cast_ray(&mut Ray::new_at_time(hit.position, dir, ray.time), world, depth + 1, rng);
@@ -158,7 +161,7 @@ impl Camera {
         ray.color
     }
 
-    pub fn raytrace(&self, img: &mut Image, world: &World, rng: &mut Random) {
+    pub fn full_raytrace(&self, img: &mut Image, world: &World, rng: &mut Random) {
         let print_progress = true;
         let total_scanlines = self.res.y;
         let step = (total_scanlines / 1000000).max(1); // Ensure we at least update once per step
@@ -186,6 +189,25 @@ impl Camera {
             print!("\x1b[A\x1b[2KProgress: {:.2}%\n", 100.);
         }
     }
+    pub async fn random_sample_raytrace(
+        &self,
+        img: &mut Arc<Mutex<Image>>,
+        world: &World,
+        rng: &mut Random,
+    ) {
+        while self.keep_tracing.load(Ordering::Relaxed) {
+            let pixel = vec2!(
+            rng.randri(0, self.res.x as i32) as usize,
+            rng.randri(0, self.res.y as i32) as usize
+        );
+            let mut ray = self.ray_at_pixel(pixel, rng);
+            let pixel_color = self.cast_ray(&mut ray, world, 0, rng);
+
+            let img_clone = Arc::clone(&img);
+            img_clone.lock().unwrap().set_acc(pixel, pixel_color);
+        }
+    }
+
     fn sky_color(&self, direction: Vec3<f32>) -> Vec3<f32> {
         // Linear interpolation based on the y-component of the direction
         let a = 0.5 * (direction.y + 1.0);
@@ -205,11 +227,12 @@ impl Default for Camera {
             transform: Transform::default(),
             fov: vec2!( 90. .to_radians(), (90. / aspect).to_radians()),
             delta: vec2!(0., 0.),
-            samples_per_pixel: 500,
+            samples_per_pixel: 10,
             max_bounces: 20,
             gamut: 0.5,
             focal_length: 1.,
             aperture: 0.2,
+            keep_tracing: Arc::new(AtomicBool::new(true)),
         }
     }
 }

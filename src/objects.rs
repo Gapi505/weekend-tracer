@@ -1,64 +1,101 @@
 use crate::random::Random;
 use crate::ray::{Interval, Ray};
-use crate::vec3;
-use crate::vectors::{Transform, Vec3};
+use crate::vectors::{Transform, Vec2, Vec3};
+use crate::{vec2, vec3};
+use image::io::Reader as ImageReader;
+use image::GenericImageView;
+use num_traits::clamp;
 
-
-#[derive(Debug, Clone, Copy)]
-pub struct HitRecord{
-    pub hit : bool,
+#[derive(Debug, Clone)]
+pub struct HitRecord {
+    pub hit: bool,
     t: f32,
     pub normal: Vec3<f32>,
     pub position: Vec3<f32>,
     pub(crate) front_face: bool,
     pub(crate) material: Material,
+    pub uv: Vec2<f32>,
 }
-impl HitRecord{
-    pub fn new(hit: bool, t: f32, normal: Vec3<f32>, position: Vec3<f32>) -> HitRecord{
-        HitRecord{hit, t, normal, position, front_face: false, ..Self::default()}
+impl HitRecord {
+    pub fn new(hit: bool, t: f32, normal: Vec3<f32>, position: Vec3<f32>) -> HitRecord {
+        HitRecord {
+            hit,
+            t,
+            normal,
+            position,
+            front_face: false,
+            ..Self::default()
+        }
     }
-    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Vec3<f32>){
+    pub fn set_face_normal(&mut self, ray: &Ray, outward_normal: Vec3<f32>) {
         self.front_face = ray.direction.dot(outward_normal) < 0.0;
-        self.normal = if self.front_face{ outward_normal } else { -outward_normal }
+        self.normal = if self.front_face {
+            outward_normal
+        } else {
+            -outward_normal
+        }
     }
 }
 impl Default for HitRecord {
-    fn default() -> HitRecord{
-        HitRecord{
+    fn default() -> HitRecord {
+        HitRecord {
             hit: false,
             t: 0.,
             normal: Vec3::<f32>::zero(),
             position: Vec3::<f32>::zero(),
             front_face: false,
-            material: Material::default()
+            material: Material::default(),
+            uv: vec2!(0.),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum ObjectType{
+pub enum ObjectType {
     Sphere,
 }
 
 #[derive(Debug, Clone)]
-pub struct Object{
+pub struct Object {
     transform: Transform,
     moved_transform: Option<Transform>,
     object_type: ObjectType,
     radius: f32,
     pub material: Material,
 }
-impl Object{
+impl Object {
     pub fn new(transform: Transform, object_type: ObjectType, radius: f32) -> Object {
-        Object{transform, object_type, radius, material: Material::default(), moved_transform: None}
+        Object {
+            transform,
+            object_type,
+            radius,
+            material: Material::default(),
+            moved_transform: None,
+        }
     }
     pub fn new_sphere(transform: Transform, radius: f32) -> Object {
-        Object{transform, object_type: ObjectType::Sphere, radius, material: Material::default(), moved_transform: None}
+        Object {
+            transform,
+            object_type: ObjectType::Sphere,
+            radius,
+            material: Material::default(),
+            moved_transform: None,
+        }
     }
-    pub fn new_sphere_with_material(transform: Transform, radius: f32, material: Material) -> Object {
-        Object{transform, object_type: ObjectType::Sphere, radius, material, moved_transform: None}
+    pub fn new_sphere_with_material(
+        transform: Transform,
+        radius: f32,
+        material: Material,
+    ) -> Object {
+        Object {
+            transform,
+            object_type: ObjectType::Sphere,
+            radius,
+            material,
+            moved_transform: None,
+        }
     }
-    pub fn with_movement(mut self, move_to: Transform) -> Self{
+    pub fn with_movement(mut self, move_to: Transform) -> Self {
         self.moved_transform = Some(move_to);
         self
     }
@@ -67,7 +104,7 @@ impl Object{
         let mut hit = HitRecord::default();
         let mut obj_transform = self.transform;
 
-        if let Some(moved) = self.moved_transform{
+        if let Some(moved) = self.moved_transform {
             obj_transform = obj_transform.lerp(moved, ray.time)
         }
 
@@ -84,7 +121,6 @@ impl Object{
         let c = oc.length_sq() - self.radius * self.radius;
 
         let discriminant = h * h - a * c;
-
 
         // Check for no hit
         if discriminant < 0.0 {
@@ -106,42 +142,57 @@ impl Object{
         hit.hit = true;
         hit.t = root;
         hit.position = ray.at(hit.t);
-        hit.material = self.material;
+        hit.material = self.clone().material;
 
         let outward_normal = (hit.position - obj_transform.position) / self.radius;
+        hit.uv = self.get_uv(outward_normal);
         hit.set_face_normal(&ray, outward_normal);
 
         hit
     }
-    pub(crate) fn collide(&self, ray: &Ray) -> HitRecord{
+    pub(crate) fn collide(&self, ray: &Ray) -> HitRecord {
         match self.object_type {
-            ObjectType::Sphere => {self.collide_sphere(ray)},
+            ObjectType::Sphere => self.collide_sphere(ray),
         }
     }
-    pub fn compute_bounding_volume(&self) -> BoundingVolume{
+    pub fn compute_bounding_volume(&self) -> BoundingVolume {
         match &self.object_type {
             ObjectType::Sphere => {
                 let min = self.transform.position - vec3!(self.radius);
                 let max = self.transform.position + vec3!(self.radius);
                 let bv = BoundingVolume::from_to(min, max);
 
-                if let Some(moved) = self.moved_transform{
+                if let Some(moved) = self.moved_transform {
                     let min = moved.position - vec3!(self.radius);
                     let max = moved.position + vec3!(self.radius);
                     let bv2 = BoundingVolume::from_to(min, max);
-                    return BoundingVolume::new_enclosing(&[bv,bv2])
+                    return BoundingVolume::new_enclosing(&[bv, bv2]);
                 }
                 bv
             }
         }
     }
+
+    pub fn get_uv(&self, point: Vec3<f32>) -> Vec2<f32> {
+        match &self.object_type {
+            ObjectType::Sphere => self.sphere_uv(point),
+        }
+    }
+
+    fn sphere_uv(&self, point: Vec3<f32>) -> Vec2<f32> {
+        let theta = (-point.y).acos(); // Polar angle
+        let phi = (-point.z).atan2(-point.x) + std::f32::consts::PI; // Azimuthal angle
+
+        vec2!(
+            phi / (2.0 * std::f32::consts::PI), // U coordinate
+            theta / std::f32::consts::PI        // V coordinate
+        )
+    }
 }
 
-
-
-impl Default for Object{
+impl Default for Object {
     fn default() -> Self {
-        Self{
+        Self {
             transform: Transform::at(Vec3::zero()),
             object_type: ObjectType::Sphere,
             radius: 1.0,
@@ -151,23 +202,33 @@ impl Default for Object{
     }
 }
 
-
-
 #[derive(Copy, Clone)]
-struct BoundingVolume{
+struct BoundingVolume {
     x: Interval,
     y: Interval,
     z: Interval,
 }
 impl BoundingVolume {
     pub fn new(x: Interval, y: Interval, z: Interval) -> BoundingVolume {
-        BoundingVolume{x, y, z}
+        BoundingVolume { x, y, z }
     }
     pub fn from_to(min: Vec3<f32>, max: Vec3<f32>) -> BoundingVolume {
-        let x = if max.x >= min.x {Interval::new(min.x, max.x)} else {Interval::new(max.x, min.x)};
-        let y = if max.y >= min.y {Interval::new(min.y, max.y)} else {Interval::new(max.y, min.y)};
-        let z = if max.z >= min.z {Interval::new(min.z, max.z)} else {Interval::new(max.z, min.z)};
-        BoundingVolume{x, y, z}
+        let x = if max.x >= min.x {
+            Interval::new(min.x, max.x)
+        } else {
+            Interval::new(max.x, min.x)
+        };
+        let y = if max.y >= min.y {
+            Interval::new(min.y, max.y)
+        } else {
+            Interval::new(max.y, min.y)
+        };
+        let z = if max.z >= min.z {
+            Interval::new(min.z, max.z)
+        } else {
+            Interval::new(max.z, min.z)
+        };
+        BoundingVolume { x, y, z }
     }
 
     pub fn new_enclosing(volumes: &[BoundingVolume]) -> BoundingVolume {
@@ -244,22 +305,22 @@ impl BoundingVolume {
 
         (group1, group2)
     }
-    
+
     fn interval_axis(&self, n: usize) -> Interval {
         match n {
-            1 => {self.y}
-            2 => {self.z}
-            _ => {self.x}
+            1 => self.y,
+            2 => self.z,
+            _ => self.x,
         }
     }
-    pub fn hit(&self, mut ray: Ray) -> bool{
-        for axis in 0..3{
+    pub fn hit(&self, mut ray: Ray) -> bool {
+        for axis in 0..3 {
             assert!(axis < 3, "Axis index out of bounds");
             let a_itv = self.interval_axis(axis);
             let direction = match axis {
                 1 => ray.direction.y,
                 2 => ray.direction.z,
-                _ => ray.direction.x
+                _ => ray.direction.x,
             };
             let a_d_inv = match direction {
                 0.0 => return self.x.contains(ray.origin.x), // For example, check if ray origin is inside bounds
@@ -269,33 +330,39 @@ impl BoundingVolume {
             let r_o_ax = match axis {
                 1 => ray.origin.y,
                 2 => ray.origin.z,
-                _ => ray.origin.x
+                _ => ray.origin.x,
             };
             let t0 = (a_itv.min - r_o_ax) * a_d_inv;
             let t1 = (a_itv.max - r_o_ax) * a_d_inv;
-            if t0 < t1{
-                if t0 > ray.interval.min {ray.interval.min = t0}
-                if t1 < ray.interval.max {ray.interval.max = t1}
+            if t0 < t1 {
+                if t0 > ray.interval.min {
+                    ray.interval.min = t0
+                }
+                if t1 < ray.interval.max {
+                    ray.interval.max = t1
+                }
+            } else {
+                if t1 > ray.interval.min {
+                    ray.interval.min = t1
+                }
+                if t0 < ray.interval.max {
+                    ray.interval.max = t0
+                }
             }
-            else {
-                if t1 > ray.interval.min {ray.interval.min = t1}
-                if t0 < ray.interval.max {ray.interval.max = t0}
-            }
-            if ray.interval.max <= ray.interval.min{
+            if ray.interval.max <= ray.interval.min {
                 return false;
             }
         }
         true
     }
 }
-struct BVTreeNode{
+struct BVTreeNode {
     bounding_volume: BoundingVolume,
     children: Option<(Box<BVTreeNode>, Box<BVTreeNode>)>,
-    object_index: Option<usize>
+    object_index: Option<usize>,
 }
 
-
-struct BVTree{
+struct BVTree {
     root: Option<BVTreeNode>,
 }
 
@@ -307,46 +374,49 @@ impl BVTree {
             .map(|(index, object)| (index, object.compute_bounding_volume()))
             .collect::<Vec<_>>();
         let root = BVTree::build_tree(&bounding_volumes);
-        BVTree{root: Some(root)}
+        BVTree { root: Some(root) }
     }
-    fn build_tree(bounding_volumes: &[(usize, BoundingVolume)]) -> BVTreeNode{
+    fn build_tree(bounding_volumes: &[(usize, BoundingVolume)]) -> BVTreeNode {
         if bounding_volumes.len() == 1 {
-            BVTreeNode{
+            BVTreeNode {
                 bounding_volume: bounding_volumes[0].1.clone(),
                 children: None,
-                object_index: Some(bounding_volumes[0].0)
+                object_index: Some(bounding_volumes[0].0),
             }
-        }
-        else {
-            let just_volumes = &*bounding_volumes.iter().map(|x| {x.1.clone()}).collect::<Vec<BoundingVolume>>();
+        } else {
+            let just_volumes = &*bounding_volumes
+                .iter()
+                .map(|x| x.1.clone())
+                .collect::<Vec<BoundingVolume>>();
             let enclosing = BoundingVolume::new_enclosing(just_volumes);
             let (group1, group2) = BoundingVolume::split_volumes(bounding_volumes, enclosing);
             let left_node = BVTree::build_tree(&group1);
             let right_node = BVTree::build_tree(&group2);
-            BVTreeNode{
+            BVTreeNode {
                 bounding_volume: enclosing,
                 children: Some((Box::new(left_node), Box::new(right_node))),
-                object_index: None
+                object_index: None,
             }
-
         }
-
     }
 }
 
-pub struct World{
+pub struct World {
     pub(crate) objects: Vec<Object>,
     bvtree: Option<BVTree>,
 }
 impl World {
     pub fn new() -> World {
-        World { objects: vec![], bvtree: None }
+        World {
+            objects: vec![],
+            bvtree: None,
+        }
     }
     pub fn add(&mut self, object: Object) {
         self.objects.push(object);
     }
 
-    pub fn build_bvtree(&mut self){
+    pub fn build_bvtree(&mut self) {
         self.bvtree = Some(BVTree::build(&*self.objects))
     }
     pub fn default_scene(&mut self) {
@@ -355,9 +425,9 @@ impl World {
             1.,
             Material::new(
                 vec3!(0.2, 0.7, 0.9), // albedo
-                0.9,                       // metalness
-                0.4,                       // roughness
-                0.0,                       // transmission
+                0.9,                  // metalness
+                0.4,                  // roughness
+                0.0,                  // transmission
             ),
         );
 
@@ -376,22 +446,12 @@ impl World {
         let sphere3 = Object::new_sphere_with_material(
             Transform::at(vec3!(3., 2., 5.)),
             0.9,
-            Material::new(
-                vec3!(1., 0.2, 0.2),
-                0.9,
-                0.05,
-                0.
-            ),
+            Material::new(vec3!(1., 0.2, 0.2), 0.9, 0.05, 0.),
         );
         let sphere4 = Object::new_sphere_with_material(
             Transform::at(vec3!(1., 2., 5.)),
             0.7,
-            Material::new(
-                vec3!(0.3, 1., 0.1),
-                1.,
-                0.,
-                0.,
-            )
+            Material::new(vec3!(0.3, 1., 0.1), 1., 0., 0.),
         );
 
         let glass_ball = Object::new_sphere_with_material(
@@ -400,15 +460,17 @@ impl World {
             Material::new(
                 Vec3::one(), // albedo
                 0.0,         // metalness
-                0.001,         // roughness
+                0.001,       // roughness
                 1.0,         // transmission
-            ).with_ior(1.47),
+            )
+            .with_ior(1.47),
         );
+        let earth_texture = ImageTexture::load("./textures/earth_texture_lowres.jpg");
 
         let another_ball = Object::new_sphere_with_material(
-            Transform::at(vec3!(-3., 1., 4.)),
+            Transform::at(vec3!(-3., -1.5, 3.)),
             1.,
-            Material::new_diffuse(vec3!(1., 1., 1.)).with_emission(vec3!(1.,1.,1.), 1.),
+            Material::new_diffuse(vec3!(1., 1., 1.)).with_texture(earth_texture),
         );
         let close_sphere = Object::new_sphere_with_material(
             Transform::at(vec3!(1., 1., 3.)),
@@ -419,21 +481,17 @@ impl World {
         let big_mirror = Object::new_sphere_with_material(
             Transform::at(vec3!(-8., -2., 11.5)),
             8.,
-            Material::new(
-                vec3!(0.9, 0.9, 0.9),
-                1.,
-                0.0,
-                0.
-            ),
+            Material::new(vec3!(0.9, 0.9, 0.9), 1., 0.0, 0.),
         );
         let moving_ball = Object::new_sphere_with_material(
             Transform::at(vec3!(5., 2., 5.)),
             0.5,
             Material::new_diffuse(vec3!(0.2, 0.8, 0.8)),
-        ).with_movement(Transform::at(vec3!(5.5, 1.7, 5.)));
+        )
+        .with_movement(Transform::at(vec3!(5.5, 1.7, 5.)));
         //println!("{:?}", moving_ball);
 
-        for z in 1..10{
+        for z in 1..10 {
             let depth_ball = Object::new_sphere_with_material(
                 Transform::at(vec3!(3., -1., z as f32)),
                 0.5,
@@ -454,7 +512,7 @@ impl World {
         self.add(moving_ball)
     }
 
-    pub fn simple_scene(&mut self){
+    pub fn simple_scene(&mut self) {
         let sphere1 = Object::new_sphere_with_material(
             Transform::at(vec3!(0., 0., 5.)),
             1.,
@@ -469,7 +527,7 @@ impl World {
         self.add(sphere2);
     }
 
-    pub fn movement_test_scene(&mut self){
+    pub fn movement_test_scene(&mut self) {
         let ground = Object::new_sphere_with_material(
             Transform::at(vec3!(0., -11., 5.)),
             10.,
@@ -479,14 +537,13 @@ impl World {
             Transform::at(vec3!(-1., 0., 5.)),
             1.,
             Material::new_diffuse(Vec3::new(1., 1., 1.)),
-        ).with_movement(
-            Transform::at(vec3!(-0.5, 0., 5.)),
-        );
+        )
+        .with_movement(Transform::at(vec3!(-0.5, 0., 5.)));
         self.add(moving_ball);
         self.add(ground);
     }
 
-    pub fn refraction_test(&mut self){
+    pub fn refraction_test(&mut self) {
         let ground = Object::new_sphere_with_material(
             Transform::at(vec3!(0., -21., 5.)),
             20.,
@@ -495,10 +552,20 @@ impl World {
         let glass_ball = Object::new_sphere_with_material(
             Transform::at(vec3!(0., 0., 5.)),
             1.,
-            Material::new_translucent(1., 0., 1.37)
+            Material::new_translucent(1., 0., 1.37),
         );
         self.add(glass_ball);
         self.add(ground);
+    }
+
+    pub fn texture_test(&mut self) {
+        let earth_texture = ImageTexture::load("./textures/earth_texture_lowres.jpg");
+        let earth = Object::new_sphere_with_material(
+            Transform::at(vec3!(0., 0., 5.)),
+            1.,
+            Material::new_diffuse(Vec3::new(1., 1., 1.)).with_texture(earth_texture),
+        );
+        self.add(earth);
     }
 
     /*pub fn collide(&self, ray: &Ray) -> HitRecord{
@@ -549,7 +616,7 @@ impl World {
         objects: &[Object],
     ) {
         // Check if the ray intersects the node's bounding volume
-        if !node.bounding_volume.hit(*ray){
+        if !node.bounding_volume.hit(*ray) {
             return; // Skip this node entirely
         }
 
@@ -572,9 +639,8 @@ impl World {
     }
 }
 
-
-#[derive(Debug, Copy, Clone)]
-pub struct Material{
+#[derive(Debug, Clone)]
+pub struct Material {
     pub albedo: Vec3<f32>,
     metalness: f32,
     roughness: f32,
@@ -582,32 +648,32 @@ pub struct Material{
     pub emission: Vec3<f32>,
     pub emission_strength: f32,
     transmission: f32,
-
+    image_texture: Option<ImageTexture>,
 }
-impl Material{
-    pub fn new_diffuse(albedo: Vec3<f32>) -> Self{
-        Self{
+impl Material {
+    pub fn new_diffuse(albedo: Vec3<f32>) -> Self {
+        Self {
             albedo,
             ..Self::default()
         }
     }
-    pub fn new_light(emission: Vec3<f32>, emission_strength: f32) -> Self{
-        Self{
+    pub fn new_light(emission: Vec3<f32>, emission_strength: f32) -> Self {
+        Self {
             emission,
             emission_strength,
             ..Self::default()
         }
     }
-    pub fn new_translucent(transmission: f32, roughness: f32, ior: f32) -> Self{
-        Self{
+    pub fn new_translucent(transmission: f32, roughness: f32, ior: f32) -> Self {
+        Self {
             transmission,
             roughness,
             ior,
             ..Self::default()
         }
     }
-    pub fn new(albedo: Vec3<f32>, metalness: f32, roughness: f32, transmission: f32) -> Self{
-        Self{
+    pub fn new(albedo: Vec3<f32>, metalness: f32, roughness: f32, transmission: f32) -> Self {
+        Self {
             albedo,
             metalness,
             roughness,
@@ -616,31 +682,36 @@ impl Material{
         }
     }
 
-    pub fn with_ior(&mut self, ior: f32) -> Self{
+    pub fn with_ior(&mut self, ior: f32) -> Self {
         self.ior = ior;
-        *self
+        self.clone()
     }
-    pub fn with_roughness(&mut self, roughness: f32) -> Self{
+    pub fn with_roughness(&mut self, roughness: f32) -> Self {
         self.roughness = roughness;
-        *self
+        self.clone()
     }
-    pub fn with_emission(&mut self, emission: Vec3<f32>, emission_strength: f32) -> Self{
+    pub fn with_emission(&mut self, emission: Vec3<f32>, emission_strength: f32) -> Self {
         self.emission = emission;
         self.emission_strength = emission_strength;
-        *self
+        self.clone()
     }
-    pub fn with_albedo(&mut self, albedo: Vec3<f32>) -> Self{
+    pub fn with_albedo(&mut self, albedo: Vec3<f32>) -> Self {
         self.albedo = albedo;
-        *self
+        self.clone()
     }
-    pub fn with_metalness(&mut self, metalness: f32) -> Self{
+    pub fn with_metalness(&mut self, metalness: f32) -> Self {
         self.metalness = metalness;
-        *self
+        self.clone()
     }
-    pub fn with_transmission(&mut self, transmission: f32, ior: f32) -> Self{
+    pub fn with_transmission(&mut self, transmission: f32, ior: f32) -> Self {
         self.transmission = transmission;
         self.ior = ior;
-        *self
+        self.clone()
+    }
+
+    pub fn with_texture(&mut self, image: ImageTexture) -> Self {
+        self.image_texture = Some(image);
+        self.clone()
     }
     pub(crate) fn scatter(
         &self,
@@ -648,7 +719,12 @@ impl Material{
         direction: Vec3<f32>,
         rng: &mut Random,
         is_front_face: bool,
+        uv: Vec2<f32>,
     ) -> (Vec3<f32>, Vec3<f32>) {
+        let mut albedo = self.albedo;
+        if let Some(texture) = self.clone().image_texture {
+            albedo = texture.sample(uv.x, uv.y);
+        }
         let unit_direction = direction.normalize();
         // let is_front_face = unit_direction.dot(normal) < 0.0;
         // let normal = if is_front_face { normal } else { -normal };
@@ -668,11 +744,11 @@ impl Material{
         // Early return for pure diffuse materials
         if metalness == 0.0 && transmission == 0.0 {
             let scattered_direction = normal + rng.random_unit_vector() * roughness;
-            let attenuation = self.albedo;
+            let attenuation = albedo;
             return (scattered_direction.normalize(), attenuation);
         }
 
-        let mut attenuation = self.albedo;
+        let mut attenuation = albedo;
         let mut scattered_direction = Vec3::zero();
 
         // Compute Fresnel reflectance using Schlick's approximation
@@ -698,16 +774,12 @@ impl Material{
             if random_choice < diffuse_prob {
                 // Diffuse reflection (Lambertian)
                 scattered_direction = normal + rng.random_unit_vector() * roughness;
-                attenuation = self.albedo;
+                attenuation = albedo;
             } else {
                 // Specular reflection
                 let reflected = reflect(unit_direction, normal);
                 scattered_direction = reflected + roughness * rng.random_in_unit_sphere();
-                attenuation = if metalness > 0.0 {
-                    self.albedo
-                } else {
-                    Vec3::one()
-                };
+                attenuation = if metalness > 0.0 { albedo } else { Vec3::one() };
             }
         } else {
             // Transmission is non-zero; include refraction calculations
@@ -726,16 +798,12 @@ impl Material{
             if random_choice < diffuse_prob {
                 // Diffuse reflection
                 scattered_direction = normal + rng.random_unit_vector() * roughness;
-                attenuation = self.albedo;
+                attenuation = albedo;
             } else if random_choice < diffuse_prob + specular_prob {
                 // Specular reflection
                 let reflected = reflect(unit_direction, normal);
                 scattered_direction = reflected + roughness * rng.random_in_unit_sphere();
-                attenuation = if metalness > 0.0 {
-                    self.albedo
-                } else {
-                    Vec3::one()
-                };
+                attenuation = if metalness > 0.0 { albedo } else { Vec3::one() };
             } else {
                 // Transmission (Refraction)
                 let refraction_ratio = if is_front_face {
@@ -745,8 +813,7 @@ impl Material{
                 };
 
                 // Perform refraction calculation only when necessary
-                if let Some(refracted_direction) =
-                    refract(unit_direction, normal, refraction_ratio)
+                if let Some(refracted_direction) = refract(unit_direction, normal, refraction_ratio)
                 {
                     scattered_direction =
                         refracted_direction + roughness * rng.random_in_unit_sphere();
@@ -755,11 +822,7 @@ impl Material{
                     // Total internal reflection
                     let reflected = reflect(unit_direction, normal);
                     scattered_direction = reflected + roughness * rng.random_in_unit_sphere();
-                    attenuation = if metalness > 0.0 {
-                        self.albedo
-                    } else {
-                        Vec3::one()
-                    };
+                    attenuation = if metalness > 0.0 { albedo } else { Vec3::one() };
                 }
             }
         }
@@ -773,7 +836,6 @@ impl Material{
         r0 + (1.0 - r0) * (1.0 - cosine).powi(5)
     }
 }
-
 
 // Helper function to reflect a vector
 fn reflect(v: Vec3<f32>, n: Vec3<f32>) -> Vec3<f32> {
@@ -795,7 +857,7 @@ fn refract(v: Vec3<f32>, n: Vec3<f32>, eta: f32) -> Option<Vec3<f32>> {
 
 impl Default for Material {
     fn default() -> Material {
-        Self{
+        Self {
             albedo: Vec3::one(),
             metalness: 0.,
             roughness: 1.,
@@ -803,6 +865,48 @@ impl Default for Material {
             emission: Vec3::zero(),
             transmission: 0.,
             emission_strength: 0.,
+            image_texture: None,
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ImageTexture {
+    data: Vec<Vec3<f32>>,
+    res: Vec2<u32>,
+}
+impl ImageTexture {
+    pub fn load(path: &str) -> ImageTexture {
+        let img = image::open(path).expect("Failed to open image");
+        let res = vec2!(img.dimensions().0, img.dimensions().1);
+        let mut data = vec![Vec3::zero(); res.x as usize * res.y as usize];
+        for y in 0..res.y {
+            for x in 0..res.x {
+                let ind = (y * res.x + x) as usize;
+                let pixel = img.get_pixel(x, y);
+                data[ind] = Vec3::new(
+                    pixel[0] as f32 / 255.0, // Normalize R
+                    pixel[1] as f32 / 255.0, // Normalize G
+                    pixel[2] as f32 / 255.0, // Normalize B
+                );
+            }
+        }
+        //println!("{:?}", data);
+        ImageTexture { res, data }
+    }
+
+    pub fn sample(&self, mut u: f32, mut v: f32) -> Vec3<f32> {
+        u = clamp(u, 0.0, 1.0);
+        v = clamp(v, 0.0, 1.0);
+        let pixel = vec2!(
+            (u * (self.res.x as f32)) as u32,
+            (v * (self.res.y as f32)) as u32
+        );
+        self.get(pixel)
+    }
+
+    pub fn get(&self, pix: Vec2<u32>) -> Vec3<f32> {
+        let ind = pix.y * self.res.x + pix.x;
+        self.data[ind as usize]
     }
 }

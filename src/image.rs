@@ -6,9 +6,11 @@ use std::fs::File;
 use std::io::Write;
 use std::process::Command;
 
+#[derive(Debug)]
 pub struct Image {
-    size: Vec2<usize>,
+    pub size: Vec2<usize>,
     data: Vec<Vec3<f32>>,
+    pub accumulated_data: Vec<Vec<Vec3<f32>>>,
     aspect: f32,
     file: Option<File>,
 }
@@ -16,10 +18,12 @@ pub struct Image {
 impl Image {
     pub fn new(size: Vec2<usize>) -> Image {
         let data = vec![Vec3::zero(); size.x * size.y];
+        let accumulated_data = vec![vec![Vec3::zero()]; size.x * size.y];
         let aspect = size.x as f32 / size.y as f32;
         Self {
             size,
             data,
+            accumulated_data,
             aspect,
             file: None,
         }
@@ -28,10 +32,12 @@ impl Image {
     pub fn from_camera(cam: &Camera) -> Image {
         let size = cam.res;
         let data = vec![Vec3::zero(); size.x * size.y];
+        let accumulated_data = vec![vec![Vec3::zero()]; size.x * size.y];
         let aspect = cam.aspect;
         Self {
             size,
             data,
+            accumulated_data,
             aspect,
             file: None,
         }
@@ -86,6 +92,40 @@ impl Image {
     pub fn set(&mut self, pos: Vec2<usize>, color: Vec3<f32>) {
         let index = pos.y * self.size.x + pos.x;
         self.data[index] = color;
+    }
+    pub fn set_acc(&mut self, pos: Vec2<usize>, color: Vec3<f32>) {
+        let index = pos.y * self.size.x + pos.x;
+        self.accumulated_data[index].push(color);
+    }
+
+    pub fn accumulate(&mut self) {
+        for i in 0..self.accumulated_data.len() {
+            let mut sum = Vec3::zero();
+            if self.accumulated_data[i].len() != 1 {
+                for j in 1..self.accumulated_data[i].len() {
+                    sum += self.accumulated_data[i][j];
+                }
+            }
+            self.data[i] = sum / self.accumulated_data[i].len() as f32;
+        }
+    }
+    pub fn update_buffer(&mut self, buffer: &mut Vec<u32>) {
+        self.accumulate();
+        self.gamma_correction();
+
+        if buffer.len() != self.size.x * self.size.y {
+            panic!("wrong size buffer")
+        }
+        for y in 0..self.size.y {
+            for x in 0..self.size.x {
+                let index = y * self.size.x + x;
+                buffer[index] = (255 << 24) |
+                                ((self.data[index].x.to_u8() as u32) << 16) |
+                                ((self.data[index].y.to_u8() as u32) << 8) |
+                                (self.data[index].z.to_u8() as u32);
+            }
+        }
+
     }
 }
 

@@ -7,3 +7,8 @@ edition = "2021"
 num-traits = "0.2.19"
 rand = "0.9.0-alpha.2"
 rand_chacha = "0.9.0-alpha.2"
+minifb = "0.27.0"
+tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+log = "0.4.22"
+env_logger = "0.11.5"
+image = "0.25.5"

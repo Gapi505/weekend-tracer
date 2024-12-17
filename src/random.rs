@@ -19,6 +19,9 @@ impl Random {
     pub fn randr(&mut self, min: f32, max: f32) -> f32 {
         self.rng.gen_range(min..max)
     }
+    pub fn randri(&mut self, min: i32, max: i32) -> i32 {
+        self.rng.gen_range(min..max)
+    }
     pub fn sample_square(&mut self)  -> Vec2<f32> {
         vec2!(self.rng.random::<f32>(), self.rng.random::<f32>())
     }
