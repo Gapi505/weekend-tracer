@@ -142,7 +142,7 @@ macro_rules! vec2 {
 
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Vec3<T> {
     pub x: T,
     pub y: T,

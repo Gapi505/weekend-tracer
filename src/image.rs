@@ -1,3 +1,4 @@
+use std::default::Default;
 use crate::camera::Camera;
 use crate::vectors::{Vec2, Vec3};
 use crate::{vec2, vec3};
@@ -16,7 +17,8 @@ pub struct Image {
     file: Option<File>,
 
     pub kernel: i32,
-    pub threshold: usize
+    pub threshold: usize,
+    accumulate_clear: bool,
 }
 
 impl Image {
@@ -32,8 +34,7 @@ impl Image {
             accumulated_data,
             aspect,
             file: None,
-            kernel: 2,
-            threshold: 3
+            ..Self::default()
         }
     }
 
@@ -50,8 +51,7 @@ impl Image {
             accumulated_data,
             aspect,
             file: None,
-            kernel: 2,
-            threshold: 3
+            ..Self::default()
         }
     }
 
@@ -119,6 +119,9 @@ impl Image {
                 }
             }
             if self.accumulator[i].len() <= self.threshold{
+                if self.accumulate_clear{
+                    self.accumulated_data[i]=None;
+                }
                 continue;
             }
             self.accumulated_data[i] = Some(sum / self.accumulator[i].len() as f32);
@@ -184,6 +187,28 @@ impl Image {
 
     }
 }
+
+impl Default for Image {
+    fn default() -> Image {
+        let size = vec2!(256, 256);
+        let data = vec![Vec3::zero(); size.x * size.y];
+        let accumulator = vec![vec![Vec3::zero()]; size.x * size.y];
+        let accumulated_data = vec![None; size.x * size.y];
+        let aspect = size.x as f32 / size.y as f32;
+        Self {
+            size,
+            data,
+            accumulator,
+            accumulated_data,
+            aspect,
+            file: None,
+            kernel: 2,
+            threshold: 3,
+            accumulate_clear: false
+        }
+    }
+}
+
 
 trait FToU8Color {
     fn to_u8(&self) -> u8;

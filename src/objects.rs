@@ -470,12 +470,14 @@ impl World {
         let earth = Object::new_sphere_with_material(
             Transform::at(vec3!(-4., -1.5, 2.5)),
             1.5,
-            Material::new_diffuse(vec3!(1., 1., 1.)).with_texture(earth_texture),
+            Material::new_diffuse(vec3!(1., 1., 1.)).with_texture(earth_texture)//.with_metalness(1.).with_metalness(0.05),
         );
-        let close_sphere = Object::new_sphere_with_material(
-            Transform::at(vec3!(1., 1., 3.)),
-            0.5,
-            Material::new_diffuse(vec3!(0.2, 0.8, 0.8)),
+        let checker = ImageTexture::load("./textures/checker_8x8.png");
+
+        let checkered_sphere = Object::new_sphere_with_material(
+            Transform::at(vec3!(1., -0.5, 3.5)),
+            0.7,
+            Material::new_diffuse(vec3!(0.2, 0.8, 0.8)).with_texture(checker).with_metalness(0.9).with_roughness(0.1),
         );
 
         let big_mirror = Object::new_sphere_with_material(
@@ -500,6 +502,20 @@ impl World {
             self.add(depth_ball);
         }
 
+
+        let light = Object::new_sphere_with_material(
+            Transform::at(vec3!(0., 6., 4.)),
+            3.,
+            Material::new_diffuse(vec3!(1., 1., 1.)).with_emission(2.),
+        );
+        let tone_light = Object::new_sphere_with_material(
+            Transform::at(
+                vec3!(7., 1., 6.),
+            ),
+            2.5,
+            Material::new_light(vec3!(1., 0.2, 1.), 5.)
+        );
+
         self.add(sphere1);
         self.add(sphere2);
         self.add(sphere3);
@@ -507,9 +523,11 @@ impl World {
         self.add(floor);
         self.add(glass_ball);
         self.add(earth);
-        self.add(close_sphere);
+        self.add(checkered_sphere);
         self.add(big_mirror);
-        self.add(moving_ball)
+        self.add(moving_ball);
+        self.add(light);
+        self.add(tone_light);
     }
 
     pub fn simple_scene(&mut self) {
@@ -645,7 +663,7 @@ pub struct Material {
     metalness: f32,
     roughness: f32,
     ior: f32,
-    pub emission: Vec3<f32>,
+    //pub emission: Vec3<f32>,
     pub emission_strength: f32,
     transmission: f32,
     image_texture: Option<ImageTexture>,
@@ -659,7 +677,7 @@ impl Material {
     }
     pub fn new_light(emission: Vec3<f32>, emission_strength: f32) -> Self {
         Self {
-            emission,
+            albedo: emission,
             emission_strength,
             ..Self::default()
         }
@@ -690,8 +708,7 @@ impl Material {
         self.roughness = roughness;
         self.clone()
     }
-    pub fn with_emission(&mut self, emission: Vec3<f32>, emission_strength: f32) -> Self {
-        self.emission = emission;
+    pub fn with_emission(&mut self, emission_strength: f32) -> Self {
         self.emission_strength = emission_strength;
         self.clone()
     }
@@ -713,14 +730,7 @@ impl Material {
         self.image_texture = Some(image);
         self.clone()
     }
-    pub(crate) fn scatter(
-        &self,
-        normal: Vec3<f32>,
-        direction: Vec3<f32>,
-        rng: &mut Random,
-        is_front_face: bool,
-        uv: Vec2<f32>,
-    ) -> (Vec3<f32>, Vec3<f32>) {
+    pub(crate) fn scatter_old(&self, normal: Vec3<f32>, direction: Vec3<f32>, rng: &mut Random, is_front_face: bool, uv: Vec2<f32>, ) -> (Vec3<f32>, Vec3<f32>) {
         let mut albedo = self.albedo;
         if let Some(texture) = self.clone().image_texture {
             albedo = texture.sample(uv.x, uv.y);
@@ -731,7 +741,7 @@ impl Material {
 
         // Handle emission
         if self.emission_strength > 0.0 {
-            let emitted = self.emission * self.emission_strength;
+            let emitted = albedo * self.emission_strength;
             // Emission doesn't scatter further; return early
             return (Vec3::zero(), emitted);
         }
@@ -830,6 +840,10 @@ impl Material {
         (scattered_direction.normalize(), attenuation)
     }
 
+    pub fn scatter(&self, hit_record: HitRecord, direction: Vec3<f32>, rng: &mut Random) -> (Vec3<f32>, Vec3<f32>) {
+
+    }
+
     // Schlick approximation for Fresnel effect
     fn schlick(&self, cosine: f32, ior: f32) -> f32 {
         let r0 = ((1.0 - ior) / (1.0 + ior)).powi(2);
@@ -862,7 +876,7 @@ impl Default for Material {
             metalness: 0.,
             roughness: 1.,
             ior: 1.,
-            emission: Vec3::zero(),
+            //emission: Vec3::zero(),
             transmission: 0.,
             emission_strength: 0.,
             image_texture: None,
@@ -899,8 +913,8 @@ impl ImageTexture {
         u = clamp(u, 0.0, 1.0);
         v = clamp(v, 0.0, 1.0);
         let pixel = vec2!(
-            (u * (self.res.x as f32)) as u32,
-            (v * (self.res.y as f32)) as u32
+            (u * ((self.res.x-1) as f32)) as u32,
+            (v * ((self.res.y-1) as f32)) as u32
         );
         self.get(pixel)
     }

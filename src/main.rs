@@ -87,7 +87,7 @@ async fn main() {
             let mut i = 0;
             while window.is_open() && !window.is_key_down(Key::Escape) && keep_tracing.load(Ordering::Relaxed) {
                 window.update_with_buffer(&window_buffer, res.x, res.y).unwrap();
-                if i >= res.x/10{
+                if i >= res.x/5{
                     img_arc.lock().unwrap().update_buffer(&mut window_buffer);
                     i = 0;
                 }

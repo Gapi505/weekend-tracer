@@ -144,15 +144,17 @@ impl Camera {
             // let dir = (hit.normal + rng.random_unit_vector()).normalize();
             let (dir, attenuation) =
                 hit.material
-                    .scatter(hit.normal, ray.direction, rng, hit.front_face, hit.uv);
+                    .scatter_old(hit.normal, ray.direction, rng, hit.front_face, hit.uv);
+            if dir == Vec3::zero(){
+                return attenuation;
+            }
             // let dir = hit.normal;
             let reflected_color =
                 self.cast_ray(&mut Ray::new_at_time(hit.position, dir, ray.time), world, depth + 1, rng);
             // let albedo = hit.material.albedo;
             // let emission = hit.material.emission;
             // ray.color = (reflected_color * albedo) + emission;
-            ray.color = (reflected_color * attenuation)
-                + hit.material.emission * hit.material.emission_strength;
+            ray.color = (reflected_color * attenuation);
             //ray.color = hit.normal * 0.5 + vec3!(0.5);
             return ray.color;
         }
@@ -173,8 +175,7 @@ impl Camera {
                 let mut pixel_color = Vec3::zero();
                 for _ in 0..self.samples_per_pixel {
                     let mut ray = self.ray_at_pixel(pixel, rng);
-                    self.cast_ray(&mut ray, &world, 0, rng);
-                    pixel_color += ray.color;
+                    pixel_color += self.cast_ray(&mut ray, &world, 0, rng);;
                 }
                 pixel_color *= pixel_sample_influence;
                 img.set(pixel, pixel_color);
@@ -209,6 +210,7 @@ impl Camera {
     }
 
     fn sky_color(&self, direction: Vec3<f32>) -> Vec3<f32> {
+        return vec3!(0.);
         // Linear interpolation based on the y-component of the direction
         let a = 0.5 * (direction.y + 1.0);
         // Interpolate between white and sky blue
